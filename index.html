@@ -74,7 +74,7 @@ input,textarea,select{border-radius:12px;background:#0b1f25}input:focus,textarea
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const VERSION='4.0';
+const VERSION='4.1';
 const fmt=n=>(n>0?'+':'')+(Math.round(n*10)/10);
 // Punkti: [nosaukums, punkti spēlētājam]; pretinieki saņem pretējo zīmi (pusi vai visu).
 const BASE={"Lielais":[["Uzvara 61–90",2],["Uzvara 91+ (jaņi)",4],["Uzvara visi stiķi",6],["Zaudējums 31–60",-4],["Zaudējums ≤30",-6],["Zaudējums, nav stiķu",-8]],
@@ -187,31 +187,40 @@ if(!m||!S[m])return;const k={'Lielais':'L','Zole':'Z','Mazā zole':'M'}[r.g];
 if(k){S[m][k][1]++;if(r.d[m]>0)S[m][k][0]++}else if(r.g==='Galdiņš')S[m].G++});
 return Object.values(S).sort((a,b)=>b.pts-a.pts)}
 const sc2=a=>a[1]?a[1]+' ('+Math.round(a[0]*100/a[1])+'%)':'–';
-let statSort='pts',statPl=null,SCP=[];
-function stP(p){statPl=statPl===p?null:p;render()}
-function sdot(k){const e=$('#sdet'),x=SCP[k];if(!e||!x)return;e.innerHTML=k===0?'<span class=mu>Sākums: 0</span>':`<b>#${k}</b> · ${x.rd}. kārta · ${esc(x.g)}${x.o&&x.o!==x.g?' · '+esc(x.o):''}<br>Partijā <b style="color:${x.d<0?'var(--neg)':'var(--ac)'}">${fmt(x.d)}</b> · kopā <b style="color:var(--gd)">${fmt(x.v)}</b>`;
-document.querySelectorAll('#sch circle').forEach(c=>c.setAttribute('r',+c.dataset.k===k?7:4))}
-function statChart(p){const rs=tRounds().filter(r=>r.d&&p in r.d).sort((a,b)=>a.t-b.t);
-if(!rs.length)return `<div class="card mu"><b>${esc(p)}</b>: vēl nav nospēlētu partiju.</div>`;
-let s=0;SCP=[{v:0}];rs.forEach(r=>{s+=r.d[p];SCP.push({v:s,d:r.d[p],rd:r.rd,g:r.g==='Custom'?'Cits':r.g==='Pule'?'Visi nopasē (pule)':r.g,o:r.o})});
-const n=rs.length,W=680,Hh=280,L=46,Rr=16,T=16,B=34,ys=SCP.map(x=>x.v),mn=Math.min(0,...ys),mx=Math.max(0,...ys),sp=(mx-mn)||1;
-const X=i=>L+(n?i/n:0)*(W-L-Rr),Y=v=>T+(mx-v)/sp*(Hh-T-B);
+let statSort='pts',statSel=[],SCD=[];
+const SCC=['#d8b65c','#5bb690','#ff8a7e','#6fb1ff','#c792ea','#ffa94d','#e8eeee','#f06fa8'];
+const scol=p=>SCC[Math.max(0,statSel.indexOf(p))%SCC.length];
+function stP(p){const i=statSel.indexOf(p);if(i>=0)statSel.splice(i,1);else statSel.push(p);render()}
+function stClr(){statSel=[];render()}
+function sdot(i){const e=$('#sdet'),x=SCD[i];if(!e||!x)return;
+e.innerHTML=`<b style="color:${x.c}">${esc(x.p)}</b> · partija #${x.g} · ${x.rd}. kārta · ${esc(x.gm)}${x.o&&x.o!==x.gm?' · '+esc(x.o):''}<br>Partijā <b style="color:${x.d<0?'var(--neg)':'var(--ac)'}">${fmt(x.d)}</b> · kopā <b style="color:var(--gd)">${fmt(x.v)}</b>`;
+document.querySelectorAll('#sch circle[data-d]').forEach(c=>c.setAttribute('r',+c.getAttribute('data-d')===i?7:4))}
+function statChart(){const sel=statSel.filter(p=>cfg.players.includes(p));if(!sel.length)return '';
+const all=tRounds().filter(r=>r.d).sort((a,b)=>a.t-b.t),N=all.length;
+if(!N)return '<div class="card mu">Vēl nav nospēlētu partiju.</div>';
+SCD=[];
+const ser=sel.map(p=>{let v=0,n=0;const pts=[{x:0,v:0}];
+all.forEach((r,k)=>{if(p in r.d){v+=r.d[p];n++;const di=SCD.push({p,c:scol(p),g:k+1,rd:r.rd,gm:r.g==='Custom'?'Cits':r.g==='Pule'?'Visi nopasē (pule)':r.g,o:r.o,d:r.d[p],v})-1;pts.push({x:k+1,v,di})}else pts.push({x:k+1,v})});
+return {p,c:scol(p),pts,v,n}});
+const ys=ser.flatMap(q=>q.pts.map(z=>z.v)),mn=Math.min(0,...ys),mx=Math.max(0,...ys),sp=(mx-mn)||1;
+const W=680,Hh=290,L=46,Rr=16,T=16,B=34,X=i=>L+(i/N)*(W-L-Rr),Y=v=>T+(mx-v)/sp*(Hh-T-B);
 const st=Math.pow(10,Math.floor(Math.log10(sp/4))),f=[1,2,5,10].find(m=>sp/(st*m)<=6)*st;
 let grid='';for(let v=Math.ceil(mn/f)*f;v<=mx+1e-9;v+=f)grid+=`<line x1="${L}" x2="${W-Rr}" y1="${Y(v)}" y2="${Y(v)}" style="stroke:var(--bd)"/><text x="${L-6}" y="${Y(v)+4}" text-anchor="end" style="fill:var(--mu);font-size:11px">${rn(v)}</text>`;
 const zero=`<line x1="${L}" x2="${W-Rr}" y1="${Y(0)}" y2="${Y(0)}" style="stroke:var(--mu)" stroke-dasharray="4 3"/>`;
-let rl='';rs.forEach((r,k)=>{if(k>0&&r.rd!==rs[k-1].rd){const x=X(k+.5);rl+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${Hh-B}" style="stroke:var(--gd)" stroke-dasharray="2 4" opacity=".7"/><text x="${x+3}" y="${T+10}" style="fill:var(--gd);font-size:11px">${r.rd}. kārta</text>`}});
-const ex=Math.max(1,Math.ceil(n/10));let xt='';for(let i=0;i<=n;i+=ex)xt+=`<text x="${X(i)}" y="${Hh-B+16}" text-anchor="middle" style="fill:var(--mu);font-size:11px">${i}</text>`;
-const line=SCP.map((x,i)=>X(i)+','+Y(x.v)).join(' ');
-const dots=SCP.map((x,i)=>`<circle data-k="${i}" cx="${X(i)}" cy="${Y(x.v)}" r="4" style="fill:${i&&x.d<0?'var(--neg)':'var(--gd)'};stroke:var(--bg);stroke-width:1.5;cursor:pointer" onclick="sdot(${i})"/><circle cx="${X(i)}" cy="${Y(x.v)}" r="14" fill="transparent" style="cursor:pointer" onclick="sdot(${i})"/>`).join('');
-const best=Math.max(...ys),worst=Math.min(...ys);
-return `<div class=card><h3>${esc(p)} · punktu gaita</h3><div style="overflow-x:auto"><svg id=sch viewBox="0 0 ${W} ${Hh}" style="width:100%;min-width:420px;height:auto;display:block">${grid}${zero}${rl}<polyline points="${line}" fill="none" style="stroke:var(--gd)" stroke-width="2.5" stroke-linejoin="round"/>${dots}${xt}<text x="${(L+W-Rr)/2}" y="${Hh-4}" text-anchor="middle" style="fill:var(--mu);font-size:11px">partijas nr.</text></svg></div>
+let rl='';all.forEach((r,k)=>{if(k>0&&r.rd!==all[k-1].rd){const x=X(k+.5);rl+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${Hh-B}" style="stroke:var(--gd)" stroke-dasharray="2 4" opacity=".7"/><text x="${x+3}" y="${T+10}" style="fill:var(--gd);font-size:11px">${r.rd}. kārta</text>`}});
+const ex=Math.max(1,Math.ceil(N/10));let xt='';for(let i=0;i<=N;i+=ex)xt+=`<text x="${X(i)}" y="${Hh-B+16}" text-anchor="middle" style="fill:var(--mu);font-size:11px">${i}</text>`;
+const lines=ser.map(q=>`<polyline points="${q.pts.map(z=>X(z.x)+','+Y(z.v)).join(' ')}" fill="none" stroke="${q.c}" stroke-width="2.5" stroke-linejoin="round"/>`).join('');
+const dots=ser.map(q=>q.pts.filter(z=>z.di!==undefined).map(z=>`<circle data-d="${z.di}" cx="${X(z.x)}" cy="${Y(z.v)}" r="4" fill="${q.c}" stroke="#0a191e" stroke-width="1.5" style="cursor:pointer" onclick="sdot(${z.di})"/><circle cx="${X(z.x)}" cy="${Y(z.v)}" r="13" fill="transparent" style="cursor:pointer" onclick="sdot(${z.di})"/>`).join('')).join('');
+const leg=ser.map(q=>`<span class=chip style="background:${q.c};color:#0a191e">${esc(q.p)} ${fmt(q.v)}</span>`).join('');
+return `<div class=card><h3>Punktu gaita spēles laikā</h3><div>${leg}<button onclick="stClr()" style="min-height:0;padding:4px 12px">Notīrīt</button></div>
+<div style="overflow-x:auto"><svg id=sch viewBox="0 0 ${W} ${Hh}" style="width:100%;min-width:420px;height:auto;display:block">${grid}${zero}${rl}${lines}${dots}${xt}<text x="${(L+W-Rr)/2}" y="${Hh-4}" text-anchor="middle" style="fill:var(--mu);font-size:11px">partijas nr. turnīrā (hronoloģiski)</text></svg></div>
 <div id=sdet style="min-height:2.8em;margin-top:6px"><span class=mu>Spied uz punkta, lai redzētu partiju.</span></div>
-<small class=mu>${n} partijas · tagad ${fmt(s)} · augstākais ${fmt(best)} · zemākais ${fmt(worst)}</small></div>`}
+<small class=mu>Līnija kāpj vai krīt tikai tajās partijās, kurās spēlētājs piedalījies.</small></div>`}
 function stS(k){statSort=k;render()}
 function statsV(){if(!cfg)return hdr('Statistika')+'<div class=card>Ielādē…</div>';
 const key=x=>['L','Z','M'].includes(statSort)?x[statSort][1]:x[statSort],rows=calcStats().sort((a,b)=>key(b)-key(a)||b.pts-a.pts);
 const th=(k,l)=>`<th style="cursor:pointer;padding:6px 4px;${statSort===k?'color:var(--gd);text-decoration:underline':''}" onclick="stS('${k}')">${l}</th>`;
-return hdr('Statistika')+`<div class=card style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;text-align:center"><tr class=mu><th style="text-align:left">Spēlētājs</th>${th('n','Partijas')}${th('L','Lielais')}${th('Z','Zole')}${th('M','Mazā zole')}${th('G','Galdiņš zaud.')}${th('pts','Punkti')}</tr>${rows.map(x=>`<tr data-p="${esc(x.p)}" onclick="stP(this.dataset.p)" style="border-top:1px solid var(--bd);cursor:pointer;${statPl===x.p?'background:rgba(216,182,92,.18)':''}"><td style="text-align:left;padding:8px 6px"><b>${esc(x.p)}</b>${statPl===x.p?' 📈':''}</td><td>${x.n}</td><td>${sc2(x.L)}</td><td>${sc2(x.Z)}</td><td>${sc2(x.M)}</td><td>${x.G||'–'}</td><td style="color:${x.pts<0?'var(--neg)':'var(--gd)'};font-weight:700">${fmt(x.pts)}</td></tr>`).join('')}</table></div><small class=mu>Spied uz kolonnas nosaukuma, lai sakārtotu tabulu. Spied uz spēlētāja, lai redzētu punktu grafiku.</small>${statPl&&cfg.players.includes(statPl)?statChart(statPl):''}`}
+return hdr('Statistika')+`<div class=card style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;text-align:center"><tr class=mu><th style="text-align:left">Spēlētājs</th>${th('n','Partijas')}${th('L','Lielais')}${th('Z','Zole')}${th('M','Mazā zole')}${th('G','Galdiņš zaud.')}${th('pts','Punkti')}</tr>${rows.map(x=>`<tr data-p="${esc(x.p)}" onclick="stP(this.dataset.p)" style="border-top:1px solid var(--bd);cursor:pointer;${statSel.includes(x.p)?'background:rgba(216,182,92,.16)':''}"><td style="text-align:left;padding:8px 6px"><b>${statSel.includes(x.p)?`<span style="color:${scol(x.p)}">●</span> `:''}${esc(x.p)}</b></td><td>${x.n}</td><td>${sc2(x.L)}</td><td>${sc2(x.Z)}</td><td>${sc2(x.M)}</td><td>${x.G||'–'}</td><td style="color:${x.pts<0?'var(--neg)':'var(--gd)'};font-weight:700">${fmt(x.pts)}</td></tr>`).join('')}</table></div><small class=mu>Spied uz kolonnas nosaukuma, lai sakārtotu tabulu. Spied uz viena vai vairākiem spēlētājiem, lai zem tabulas redzētu viņu punktu grafiku.</small>${statChart()}`}
 function statRows(){const pc=a=>a[1]?Math.round(a[0]*100/a[1]):'';return [['Spēlētājs','Partijas','Lielais uzv.','Lielais kopā','Lielais %','Zole uzv.','Zole kopā','Zole %','Mazā zole uzv.','Mazā zole kopā','Mazā zole %','Galdiņš zaudēts','Punkti'],...calcStats().map(x=>[x.p,x.n,x.L[0],x.L[1],pc(x.L),x.Z[0],x.Z[1],pc(x.Z),x.M[0],x.M[1],pc(x.M),x.G,rn(x.pts)])]}
 let tvSel='t',tvMode='a',wasEnd=null,forgot=false;
 function tvs(x){tvSel=x;render()}
