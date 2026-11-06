@@ -296,7 +296,7 @@ function soloStart(){const p=[0,1,2,3].map(i=>$('#n'+i).value.trim()).filter(Boo
 function saveS(rec){solo.rounds.push(rec);svSolo();H=null;render()}
 function undoS(){if(solo.rounds.length&&confirm('Dzēst pēdējo partiju?')){solo.rounds.pop();svSolo();render()}}
 function soloNew(){if(confirm('Dzēst šī galda spēlētājus un rezultātus?')){if(sc>=2){solos.splice(sc,1);sc=sc-1;solo=solos[sc];ls.set('sc',sc);ls.set('solos',solos)}else{solo={players:[],rounds:[]};svSolo()}render()}}
-function board(pl,rs,fn){initH(pl,rs);const t=totals(rs);return `<div class=sb id=ol data-fn="${fn}">${pl.map((p,i)=>`<div data-i="${i}" class="${H.dealer===i?'dl':''}" onclick="setDl(${i})">${ordEd?'<span class=hd onclick="event.stopPropagation()" onpointerdown="dgS(event,this)" onpointermove="dgM(event)" onpointerup="dgE()" onpointercancel="dgE()">⠿</span>':''}<b>${esc(p)}</b><span class="${(t[p]||0)<0?'n':''}">${fmt(t[p]||0)}</span></div>`).join('')}</div><small class=mu>${ordEd?(dlPick?'Spied uz spēlētāja, kurš kļūs par dalītāju.':'Velc ⠿, lai mainītu vietas, vai spied „Izvēlēties dalītāju”. Kad gatavs, nospied „Gatavs”.'):'Spīdošais dala kārtis (pieskaries vārdam, lai mainītu).'}</small>`}
+function board(pl,rs,fn){initH(pl,rs);const t=totals(rs);return `<div class=sb id=ol data-fn="${fn}">${pl.map((p,i)=>`<div data-i="${i}" class="${H.dealer===i?'dl':''}" onclick="setDl(${i})">${ordEd?'<span class=hd onclick="event.stopPropagation()" onpointerdown="dgS(event,this)" onpointermove="dgM(event)" onpointerup="dgE()" onpointercancel="dgE()">⠿</span>':''}<b>${esc(p)}</b><span class="${(t[p]||0)<0?'n':''}">${fmt(t[p]||0)}</span></div>`).join('')}</div><small class=mu>${ordEd?(dlPick?'Spied uz spēlētāja, kurš kļūs par dalītāju.':'Velc ⠿, lai mainītu vietas, vai spied „Izvēlēties dalītāju”. Kad gatavs, nospied „Gatavs”.'):''}</small>`}
 function hist(rs,u){return `<div class=card><h3>Partijas (${rs.length})</h3>${rs.slice().reverse().map((r,i)=>`<div class="h ${i===0?'last':''}">#${rs.length-i} · ${esc(r.g==='Custom'?'Cits':r.g==='Pule'?'Visi nopasē (pule)':r.g)}${r.o!==r.g?' · '+esc(r.o):''}<div>${Object.entries(r.d).map(([p,v])=>`<span class=pp><span>${esc(p)}</span><b class="${v<0?'n':''}">${fmt(v)}</b></span>`).join('')}</div></div>`).join('')||'<span class=mu>Vēl nav partiju.</span>'}${rs.length?`<button onclick="${u}">Atcelt pēdējo partiju</button>`:''}</div>`}
 // ---- noteikumu redaktors ----
 const rin=(r,open)=>{const B0=PRE.MG.games,m=r.mode||'MG',miss=Object.keys(B0).filter(n=>!r.games[n]),base=(n,l)=>{const b=B0[n]&&B0[n].find(o=>o[0]===l);return b?b[1]:''};
@@ -363,7 +363,7 @@ let ordEd=false,dlPick=false;
 function togOrd(){ordEd=!ordEd;dlPick=false;render()}
 function togDlPick(){dlPick=!dlPick;render()}
 const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību'}</button></div>`;
-function setDl(i){if(!H)return;if(ordEd&&!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
+function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
 function hand(pl,sv,rs){saver=sv;initH(pl,rs);
 const P=pl.length>3?pl.filter((_,i)=>i!==H.dealer):pl,d=deltas();
 const B=(on,k,v,l)=>`<button class="${on?'on':''}" onclick="hs('${k}',${v})">${esc(l)}</button>`;
