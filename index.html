@@ -74,7 +74,7 @@ input,textarea,select{border-radius:12px;background:#0b1f25}input:focus,textarea
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const VERSION='4.1';
+const VERSION='4.2';
 const fmt=n=>(n>0?'+':'')+(Math.round(n*10)/10);
 // Punkti: [nosaukums, punkti spēlētājam]; pretinieki saņem pretējo zīmi (pusi vai visu).
 const BASE={"Lielais":[["Uzvara 61–90",2],["Uzvara 91+ (jaņi)",4],["Uzvara visi stiķi",6],["Zaudējums 31–60",-4],["Zaudējums ≤30",-6],["Zaudējums, nav stiķu",-8]],
@@ -99,7 +99,7 @@ es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete m
 function closeT(){if(es){es.close();es=null}}
 function loadList(){fetch('/api/list').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(l=>{SRV=true;list=l;if(view==='home'&&!jsel)render()}).catch(()=>{if(SRV){SRV=false;if(view==='home')render()}})}
 function enterT(t){cur=t;tbl=ls.get('tbl_'+t,null);openT();go('tmenu')}
-function go(v){if(!['tmenu','table','tv','host','stats'].includes(v)){closeT();cur=null;cfg=null;rounds=[]}if(v!=='admin')adm={};view=v;H=null;ordEd=false;if(v==='home'){jsel=null;loadList()}render();scrollTo(0,0)}
+function go(v){if(!['tmenu','table','tv','host','stats'].includes(v)){closeT();cur=null;cfg=null;rounds=[]}if(v!=='admin')adm={};view=v;H=null;ordEd=false;dlPick=false;if(v==='home'){jsel=null;loadList()}render();scrollTo(0,0)}
 function render(){const f={home:homeV,solo:soloV,tv:tvV,table:tableV,host:hostV,tcreate:createV,tmenu:menuV,stats:statsV,admin:adminV}[view];$('#app').className=view==='tv'?'w wide':'w';$('#app').innerHTML=f();tick()}
 const hdr=t=>`<div class=bar><button onclick="go('${['table','tv','host','stats'].includes(view)?'tmenu':'home'}')">←</button><b>${esc(t)}</b></div>`;
 const tRounds=()=>cfg?rounds.filter(r=>r.tid===cfg.tid):[];
@@ -294,7 +294,7 @@ function soloStart(){const p=[0,1,2,3].map(i=>$('#n'+i).value.trim()).filter(Boo
 function saveS(rec){solo.rounds.push(rec);svSolo();H=null;render()}
 function undoS(){if(solo.rounds.length&&confirm('Dzēst pēdējo partiju?')){solo.rounds.pop();svSolo();render()}}
 function soloNew(){if(confirm('Dzēst šī galda spēlētājus un rezultātus?')){if(sc>=2){solos.splice(sc,1);sc=sc-1;solo=solos[sc];ls.set('sc',sc);ls.set('solos',solos)}else{solo={players:[],rounds:[]};svSolo()}render()}}
-function board(pl,rs,fn){initH(pl,rs);const t=totals(rs);return `<div class=sb id=ol data-fn="${fn}">${pl.map((p,i)=>`<div data-i="${i}" class="${H.dealer===i?'dl':''}" onclick="setDl(${i})">${ordEd?'<span class=hd onclick="event.stopPropagation()" onpointerdown="dgS(event,this)" onpointermove="dgM(event)" onpointerup="dgE()" onpointercancel="dgE()">⠿</span>':''}<b>${esc(p)}</b><span class="${(t[p]||0)<0?'n':''}">${fmt(t[p]||0)}</span></div>`).join('')}</div><small class=mu>${ordEd?'Velc ⠿, lai mainītu vietas. Kad gatavs, nospied „Gatavs”.':'Spīdošais dala kārtis (pieskaries vārdam, lai mainītu).'}</small>`}
+function board(pl,rs,fn){initH(pl,rs);const t=totals(rs);return `<div class=sb id=ol data-fn="${fn}">${pl.map((p,i)=>`<div data-i="${i}" class="${H.dealer===i?'dl':''}" onclick="setDl(${i})">${ordEd?'<span class=hd onclick="event.stopPropagation()" onpointerdown="dgS(event,this)" onpointermove="dgM(event)" onpointerup="dgE()" onpointercancel="dgE()">⠿</span>':''}<b>${esc(p)}</b><span class="${(t[p]||0)<0?'n':''}">${fmt(t[p]||0)}</span></div>`).join('')}</div><small class=mu>${ordEd?(dlPick?'Spied uz spēlētāja, kurš kļūs par dalītāju.':'Velc ⠿, lai mainītu vietas, vai spied „Izvēlēties dalītāju”. Kad gatavs, nospied „Gatavs”.'):'Spīdošais dala kārtis (pieskaries vārdam, lai mainītu).'}</small>`}
 function hist(rs,u){return `<div class=card><h3>Partijas (${rs.length})</h3>${rs.slice().reverse().map((r,i)=>`<div class="h ${i===0?'last':''}">#${rs.length-i} · ${esc(r.g==='Custom'?'Cits':r.g==='Pule'?'Visi nopasē (pule)':r.g)}${r.o!==r.g?' · '+esc(r.o):''}<div>${Object.entries(r.d).map(([p,v])=>`<span class=pp><span>${esc(p)}</span><b class="${v<0?'n':''}">${fmt(v)}</b></span>`).join('')}</div></div>`).join('')||'<span class=mu>Vēl nav partiju.</span>'}${rs.length?`<button onclick="${u}">Atcelt pēdējo partiju</button>`:''}</div>`}
 // ---- noteikumu redaktors ----
 const rin=(r,open)=>{const B0=PRE.MG.games,m=r.mode||'MG',miss=Object.keys(B0).filter(n=>!r.games[n]),base=(n,l)=>{const b=B0[n]&&B0[n].find(o=>o[0]===l);return b?b[1]:''};
@@ -357,10 +357,11 @@ function ordT(ix){const pl=ix.map(i=>cfg.tables[tbl].players[i]);api('/api/t/'+c
 let saver=null;
 function autoDl(pl,rs){for(let k=rs.length-1;k>=0;k--){if(rs[k].dl){const i=pl.indexOf(rs[k].dl);if(i>=0)return (i+1)%pl.length}}return 0}
 function initH(pl,rs){if(!H||H.pl.join('|')!==pl.join('|'))H={pl,dealer:autoDl(pl,rs||[]),chg:false,main:null,g:null,o:null,c:{}};H.rs=rs||[]}
-let ordEd=false;
-function togOrd(){ordEd=!ordEd;render()}
-const ordBtn=()=>`<div style="text-align:right"><button class="${ordEd?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību'}</button></div>`;
-function setDl(i){if(!H)return;H.dealer=i;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
+let ordEd=false,dlPick=false;
+function togOrd(){ordEd=!ordEd;dlPick=false;render()}
+function togDlPick(){dlPick=!dlPick;render()}
+const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību'}</button></div>`;
+function setDl(i){if(!H)return;if(ordEd&&!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
 function hand(pl,sv,rs){saver=sv;initH(pl,rs);
 const P=pl.length>3?pl.filter((_,i)=>i!==H.dealer):pl,d=deltas();
 const B=(on,k,v,l)=>`<button class="${on?'on':''}" onclick="hs('${k}',${v})">${esc(l)}</button>`;
