@@ -66,6 +66,7 @@ const server=http.createServer((q,r)=>{
     const tid=m[1],a=m[2];
     if(!a&&q.method==='DELETE'){if(hk!==t.hk)return json(r,403);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200)}
     if(a==='cfg'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);if(!b.tables||!b.limit)return json(r,400);t.cfg={...b,tid};send(tid,{type:'cfg',cfg:t.cfg});save();return json(r,200)}
+    if(a==='round'&&m[3]&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const x=t.rounds.find(y=>y.id===m[3]);if(!x||!b.d||typeof b.d!=='object')return json(r,400);const d={};for(const p in x.d){const n=Number(b.d[p]);if(b.d[p]===null||b.d[p]===''||!isFinite(n))return json(r,400);d[p]=n}x.d=d;x.ed=Date.now();send(tid,{type:'upd',round:x});save();return json(r,200)}
     if(a==='round'&&q.method==='POST'){if(!b.d)return json(r,400);b.id=rid(6);b.tid=tid;t.rounds.push(b);send(tid,{type:'add',round:b});save();return json(r,200)}
     if(a==='round'&&q.method==='DELETE'){t.rounds=t.rounds.filter(x=>x.id!==m[3]);send(tid,{type:'del',id:m[3]});save();return json(r,200)}
     if(a==='order'&&q.method==='POST'){
