@@ -287,7 +287,7 @@ if(!m||!S[m])return;const k={'Lielais':'L','Zole':'Z','Mazā zole':'M'}[r.g];
 if(k){S[m][k][1]++;if(r.d[m]>0)S[m][k][0]++}else if(r.g==='Galdiņš')S[m].G++});
 return Object.values(S).sort((a,b)=>b.pts-a.pts)}
 const sc2=a=>a[1]?a[1]+' ('+Math.round(a[0]*100/a[1])+'%)':'–';
-let statSort='pts',statSel=[],SCD=[];
+let statSort='pts',statDir='desc',statSel=[],SCD=[];
 const SCC=['#d8b65c','#5bb690','#ff8a7e','#6fb1ff','#c792ea','#ffa94d','#e8eeee','#f06fa8'];
 const scol=p=>SCC[Math.max(0,statSel.indexOf(p))%SCC.length];
 function stP(p){const i=statSel.indexOf(p);if(i>=0)statSel.splice(i,1);else statSel.push(p);render()}
@@ -303,12 +303,19 @@ const ser=sel.map(p=>{let v=0,n=0;const pts=[{x:0,v:0}];
 all.forEach(r=>{if(p in r.d){v+=r.d[p];n++;const di=SCD.push({p,c:scol(p),g:n,rd:r.rd,gm:r.g==='Custom'?'Cits':r.g==='Pule'?'Visi nopasē (pule)':r.g,o:r.o,d:r.d[p],v})-1;pts.push({x:n,v,di})}});
 return {p,c:scol(p),pts,v,n}});
 const N=Math.max(1,...ser.map(q=>q.n));
-const ys=ser.flatMap(q=>q.pts.map(z=>z.v)),mn=Math.min(0,...ys),mx=Math.max(0,...ys),sp=Math.max(Math.abs(mx-mn),1e-9);
+const ys=ser.flatMap(q=>q.pts.map(z=>z.v));
+let mn0=Math.min(0,...ys),mx0=Math.max(0,...ys);
+if(mn0===mx0){mn0-=1;mx0+=1}
+const pad=Math.max((mx0-mn0)*0.08,1);
+const mn=mn0-pad,mx=mx0+pad,sp=mx-mn;
 const W=700,Hh=300,L=58,Rr=16,T=20,B=38,X=i=>L+(i/N)*(W-L-Rr),Y=v=>T+(mx-v)/sp*(Hh-T-B);
-const rawSt=Math.pow(10,Math.floor(Math.log10(sp/4||1))),st=isFinite(rawSt)&&rawSt>0?rawSt:1;
-const f=([1,2,5,10].find(m=>sp/(st*m)<=6)||1)*st;
+const rough=sp/6,mag=Math.pow(10,Math.floor(Math.log10(Math.max(rough,1e-9)))),norm=rough/mag;
+const f=(norm<=1.5?1:norm<=3?2:norm<=7?5:10)*mag;
 let grid='';
-if(isFinite(f)&&f>0){for(let v=Math.ceil(mn/f)*f,guard=0;v<=mx+f*1e-9&&guard<40;v+=f,guard++){const yy=Y(v);if(!isFinite(yy))continue;grid+=`<line x1="${L}" x2="${W-Rr}" y1="${yy}" y2="${yy}" style="stroke:var(--bd)"/><text x="${L-8}" y="${yy+4}" text-anchor="end" style="fill:var(--mu);font-size:11px">${rn(v)}</text>`}}
+for(let v=Math.ceil(mn/f)*f,guard=0;v<=mx+1e-9&&guard<50;v=+(v+f).toFixed(10),guard++){
+  const yy=Y(v);if(!isFinite(yy))continue;
+  grid+=`<line x1="${L}" x2="${W-Rr}" y1="${yy}" y2="${yy}" style="stroke:var(--bd)"/><text x="${L-8}" y="${yy+4}" text-anchor="end" style="fill:var(--mu);font-size:11px">${rn(v)}</text>`;
+}
 const zero=`<line x1="${L}" x2="${W-Rr}" y1="${Y(0)}" y2="${Y(0)}" style="stroke:var(--mu)" stroke-dasharray="4 3"/>`;
 let rl='',seenRd=new Set();
 ser.forEach(q=>{let prevRd=null;q.pts.forEach(z=>{if(z.di===undefined)return;const rd=SCD[z.di].rd;if(prevRd!=null&&rd!==prevRd&&!seenRd.has(rd)){seenRd.add(rd);const x=X(z.x-.5);rl+=`<line x1="${x}" x2="${x}" y1="${T}" y2="${Hh-B}" style="stroke:var(--gd)" stroke-dasharray="2 4" opacity=".7"/><text x="${x+3}" y="${T+10}" style="fill:var(--gd);font-size:11px">${rd}. kārta</text>`}prevRd=rd})});
@@ -320,10 +327,12 @@ return `<div class=card><h3>Punktu gaita (pa spēlētāja partijām)</h3><div>${
 <div style="overflow-x:auto"><svg id=sch viewBox="0 0 ${W} ${Hh}" style="width:100%;min-width:420px;height:auto;display:block">${grid}${zero}${rl}${lines}${dots}${xt}<text x="${(L+W-Rr)/2}" y="${Hh-4}" text-anchor="middle" style="fill:var(--mu);font-size:11px">spēlētāja partijas nr.</text></svg></div>
 <div id=sdet style="min-height:2.8em;margin-top:6px"><span class=mu>Spied uz punkta, lai redzētu partiju. Spied uz spēlētāja vārda leģendā, lai noņemtu no grafika.</span></div>
 <small class=mu>Līnija kāpj vai krīt tikai tajās partijās, kurās spēlētājs piedalījies. Zeltainās svītras — kārtu maiņa.</small></div>`}
-function stS(k){statSort=k;render()}
+function stS(k){if(['L','Z','M'].includes(k)){if(statSort!==k){statSort=k;statDir='cnt'}else if(statDir==='cnt')statDir='asc';else if(statDir==='asc')statDir='desc';else statDir='cnt'}else{if(statSort!==k){statSort=k;statDir='desc'}else statDir=statDir==='desc'?'asc':'desc'}render()}
 function statsV(){if(!cfg)return hdr('Statistika')+'<div class=card>Ielādē…</div>';
-const key=x=>['L','Z','M'].includes(statSort)?x[statSort][1]:x[statSort],rows=calcStats().sort((a,b)=>key(b)-key(a)||b.pts-a.pts);
-const th=(k,l)=>`<th style="cursor:pointer;padding:6px 4px;${statSort===k?'color:var(--gd);text-decoration:underline':''}" onclick="stS('${k}')">${l}</th>`;
+const pct=a=>a[1]?a[0]/a[1]:0;
+const key=x=>{if(['L','Z','M'].includes(statSort)){if(statDir==='cnt')return x[statSort][1];return pct(x[statSort])}return x[statSort]};
+const rows=calcStats().sort((a,b)=>{const ka=key(a),kb=key(b);return(statDir==='asc'?ka-kb:kb-ka)||b.pts-a.pts});
+const th=(k,l)=>{const on=statSort===k;const mark=on?(statDir==='cnt'?' ↓':statDir==='asc'?' %↑':' %↓'):'';return `<th style="cursor:pointer;padding:6px 4px;${on?'color:var(--gd);text-decoration:underline':''}" onclick="stS('${k}')">${l}${mark}</th>`};
 return hdr('Statistika')+`<div class=card style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;text-align:center"><tr class=mu><th style="text-align:left">Spēlētājs</th>${th('n','Partijas')}${th('L','Lielais')}${th('Z','Zole')}${th('M','Mazā zole')}${th('G','Galdiņš zaud.')}${th('pts','Punkti')}</tr>${rows.map(x=>`<tr data-p="${esc(x.p)}" onclick="stP(this.dataset.p)" style="border-top:1px solid var(--bd);cursor:pointer;${statSel.includes(x.p)?'background:rgba(216,182,92,.16)':''}"><td style="text-align:left;padding:8px 6px"><b>${statSel.includes(x.p)?`<span style="color:${scol(x.p)}">●</span> `:''}${esc(x.p)}</b></td><td>${x.n}</td><td>${sc2(x.L)}</td><td>${sc2(x.Z)}</td><td>${sc2(x.M)}</td><td>${x.G||'–'}</td><td style="color:${x.pts<0?'var(--neg)':'var(--gd)'};font-weight:700">${fmt(x.pts)}</td></tr>`).join('')}</table></div><small class=mu>Spied uz kolonnas nosaukuma, lai sakārtotu tabulu. Spied uz viena vai vairākiem spēlētājiem, lai zem tabulas redzētu viņu punktu grafiku.</small>${statChart()}`}
 function statRows(){const pc=a=>a[1]?Math.round(a[0]*100/a[1]):'';return [['Spēlētājs','Partijas','Lielais uzv.','Lielais kopā','Lielais %','Zole uzv.','Zole kopā','Zole %','Mazā zole uzv.','Mazā zole kopā','Mazā zole %','Galdiņš zaudēts','Punkti'],...calcStats().map(x=>[x.p,x.n,x.L[0],x.L[1],pc(x.L),x.Z[0],x.Z[1],pc(x.Z),x.M[0],x.M[1],pc(x.M),x.G,rn(x.pts)])]}
 let tvSel='t',tvMode='a',wasEnd=null,forgot=false;
