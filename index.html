@@ -179,7 +179,16 @@ function upHost(){const pw=prompt('Rīkotāja parole:');if(!pw)return;fetch('/ap
 function leaveT(){if(confirm('Pamest turnīru šajā ierīcē? Vēlāk vajadzēs ievadīt paroli vēlreiz.')){delete myT[cur];ls.set('myT',myT);go('home')}}
 // ---- rīkotājs ----
 function hostStat(){const c=cfg;let st='';
-if(c){st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. kārta</h3><p class=mu>${c.limit.k==='n'?'Kārtai nav limita, nākamo kārtu sāc pats':(c.limit.k==='h'?c.limit.v+' partijas katrā galdā':c.limit.v+' minūtes (laiks sākas tikai tad, kad nospied „Sākt”)')}</p>${c.limit.k==='t'?tmCtl():''}
+if(c){const lk=c.limit||{k:'n',v:0},lp=c.lp||[6,4,2,0];
+st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. kārta</h3><p class=mu>${lk.k==='n'?'Kārtai nav limita, nākamo kārtu sāc pats':(lk.k==='h'?lk.v+' partijas katrā galdā':lk.v+' minūtes (laiks sākas tikai tad, kad nospied „Sākt”)')}</p>${lk.k==='t'?tmCtl():''}
+<details class=h style="margin:10px 0"><summary><b>Turnīra iestatījumi</b></summary>
+<div class=lbl>Nosaukums</div><input id=hsName value="${esc(c.name||'')}" style="margin-bottom:8px">
+<div class=lbl>Kārta beidzas</div><div class=bar><select id=hsLk style="flex:1" onchange="const v=this.value;$('#hsLv').style.display=v==='n'?'none':'';$('#hsLv').value=v==='n'?0:($('#hsLv').value||1)"><option value=h ${lk.k==='h'?'selected':''}>pēc partiju skaita galdā</option><option value=t ${lk.k==='t'?'selected':''}>pēc laika (minūtes)</option><option value=n ${lk.k==='n'?'selected':''}>bez limita</option></select><input id=hsLv type=number min=1 value="${lk.k==='n'?24:lk.v}" style="width:90px;${lk.k==='n'?'display:none':''}"></div>
+<div class=lbl>Kārtu skaits</div><div class=bar><input id=hsTr type=number min=1 value="${c.total||7}" style="flex:1;${c.total?'':'display:none'}"><label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input id=hsTnl type=checkbox style="width:auto;margin:0" ${c.total?'':'checked'} onchange="$('#hsTr').style.display=this.checked?'none':''"> bez limita</label></div>
+<div class=lbl>Lielie punkti galdā (pa vietām)</div><div class=bar>${[0,1,2,3].map(i=>`<label style="flex:1;font-size:12px;color:var(--mu)">${i+1}. vieta<input id=hsLq${i} type=number step=any inputmode=decimal value="${lp[i]!=null?lp[i]:[6,4,2,0][i]}"></label>`).join('')}</div>
+${rin(c.rules||DEF,false)}
+<button class=pri style="margin-top:10px;min-height:0;padding:8px 14px" onclick="saveHostCfg()">Saglabāt iestatījumus</button>
+</details>
 <small class=mu>Nospied „Rediģēt” pie galda, tad spied uz diviem spēlētājiem, lai samainītu viņus vietām (kamēr galdos vēl nav partiju).</small>${c.tables.map((t,i)=>`<div class=h><b>${esc(t.n)}</b> · <small>${prog(i)}${done(i)?' ✅':''}</small> <button style="min-height:0;padding:4px 12px;float:right" onclick="edT(${i})">${ed===i?'Gatavs':'Rediģēt'}</button><div style="clear:both">${ed===null?t.players.map(esc).join(', '):t.players.map((p,j)=>`<button class="${psel&&psel.i===i&&psel.j===j?'on':''}" style="min-height:0;padding:6px 10px" onclick="selP(${i},${j})">${esc(p)}</button>`).join('')}</div></div>`).join('')}
 ${outUI()}
 <button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}
@@ -197,6 +206,15 @@ return `<div class=lbl style="margin-top:14px">Spēlētāji nākamajai kārtai (
 <p class=mu>Nākamajā kārtā: ${act.length} spēlētāji ${L?'→ '+L.length+' galdi ('+L.join('+')+')':'<span class=n>nevar sadalīt pa 3–4</span>'}</p>`}
 function setOut(out){api('/api/t/'+cur+'/cfg','POST',{...cfg,out},1).catch(e=>alert('Neizdevās: '+e.message))}
 function togOut(i){const o=cfg.out||[];if(i<0)return setOut([]);const p=cfg.players[i];setOut(o.includes(p)?o.filter(x=>x!==p):[...o,p])}
+function saveHostCfg(){if(!cfg)return;
+const name=($('#hsName')&&$('#hsName').value.trim())||cfg.name||'Zoles turnīrs';
+const k=$('#hsLk')?$('#hsLk').value:(cfg.limit&&cfg.limit.k)||'n';
+const v=k==='n'?0:Math.max(1,parseInt($('#hsLv')&&$('#hsLv').value)||1);
+const total=($('#hsTnl')&&$('#hsTnl').checked)?0:Math.max(1,parseInt($('#hsTr')&&$('#hsTr').value)||7);
+const lp=[0,1,2,3].map(i=>{const el=$('#hsLq'+i);return el?parseFloat(String(el.value).replace(',','.')):((cfg.lp||[6,4,2,0])[i])});
+if(lp.some(x=>!isFinite(x)))return alert('Ievadi lielos punktus visām 4 vietām');
+let rules=cfg.rules;try{const rr=readRules();if(rr)rules=rr}catch(e){}
+api('/api/t/'+cur+'/cfg','POST',{...cfg,name,limit:{k,v},total,lp,rules},1).then(()=>alert('Iestatījumi saglabāti')).catch(e=>alert('Neizdevās: '+e.message))}
 function addPlayersHost(){if(!cfg)return;const el=document.getElementById('newPl');if(!el)return;const raw=(el.value||'').trim();if(!raw)return alert('Ieraksti vismaz vienu vārdu');
 const names=raw.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;
 const exist=new Set(cfg.players.map(p=>p.toLowerCase()));const add=[];
@@ -460,11 +478,11 @@ function autoDl(pl,rs){for(let k=rs.length-1;k>=0;k--){if(rs[k].dl){const i=pl.i
 let pendDl=null;
 function dlFor(pl,rs){let d=autoDl(pl,rs);if(pendDl&&rs.length===pendDl.n){const i=pl.indexOf(pendDl.p);if(i>=0)d=i;pendDl=null}return d}
 function initH(pl,rs){rs=rs||[];
-if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);try{const dn=drawnDl[sbKey()];if(dn){const i=pl.indexOf(dn);if(i>=0)d=i}}catch(e){}H={pl,dealer:d,n:rs.length,chg:false,main:null,g:null,o:null,c:{}}}
+if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);if(!rs.length){try{const dn=drawnDl[sbKey()];if(dn){const i=pl.indexOf(dn);if(i>=0)d=i}}catch(e){}}H={pl,dealer:d,n:rs.length,chg:false,main:null,g:null,o:null,c:{}}}
 else if(H.n!==rs.length){H.n=rs.length;H.dealer=dlFor(pl,rs);if(pl.length>3&&H.main===pl[H.dealer])H.main=null}
 H.rs=rs}
 let ordEd=false,dlPick=false;
-function togOrd(){ordEd=!ordEd;dlPick=false;render()}
+function togOrd(){const was=ordEd;ordEd=!ordEd;dlPick=false;if(was&&!ordEd){try{ls.set(sbKey(),1)}catch(e){}}render()}
 function togDlPick(){dlPick=!dlPick;render()}
 const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`;
 function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
