@@ -101,7 +101,7 @@ const hr=()=>{const a=document.activeElement;if(a&&a.classList&&(a.classList.con
 const api=(p,m,b,host)=>{const t=myT[cur]||{};return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-Token':t.token||'','X-Host':host&&t.host?t.host:''},body:b?JSON.stringify(b):undefined}).then(r=>{if(!r.ok)throw new Error(r.status===403?'nav atļaujas':'servera kļūda '+r.status);return r.json().catch(()=>({}))})};
 function openT(){closeT();const m=myT[cur];if(!m)return;cfg=null;rounds=[];
 es=new EventSource('/events?t='+cur+'&k='+m.token);
-es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete myT[cur];ls.set('myT',myT);if(!ending)alert('Turnīrs ir beidzies.');ending=false;go('home');return}if(d.type==='add'){if(!rounds.some(r=>r.id===d.round.id))rounds.push(d.round)}else if(d.type==='del'){rounds=rounds.filter(r=>r.id!==d.id)}else if(d.type==='upd'){rounds=rounds.map(r=>r.id===d.round.id?d.round:r)}else if(d.type==='cfg'){cfg=d.cfg&&d.cfg.limit?d.cfg:null}else{cfg=d.cfg&&d.cfg.limit?d.cfg:null;rounds=d.rounds||[]}hr()}}
+es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete myT[cur];ls.set('myT',myT);if(!ending)alert('Turnīrs ir beidzies.');ending=false;go('home');return}if(d.type==='add'){if(!rounds.some(r=>r.id===d.round.id))rounds.push(d.round)}else if(d.type==='del'){rounds=rounds.filter(r=>r.id!==d.id)}else if(d.type==='upd'){rounds=rounds.map(r=>r.id===d.round.id?d.round:r)}else if(d.type==='cfg'){const _pr=cfg&&cfg.round;cfg=d.cfg&&d.cfg.limit?d.cfg:null;if(cfg&&_pr!=null&&cfg.round!==_pr){tbl=null;try{ls.set('tbl_'+cur,null)}catch(e){}}}else{cfg=d.cfg&&d.cfg.limit?d.cfg:null;rounds=d.rounds||[]}hr()}}
 function closeT(){if(es){es.close();es=null}}
 function loadList(){fetch('/api/list').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(l=>{SRV=true;list=l;if(view==='home'&&!jsel)render()}).catch(()=>{if(SRV){SRV=false;if(view==='home')render()}})}
 function enterT(t){cur=t;tbl=ls.get('tbl_'+t,null);openT();go('tmenu')}
@@ -182,10 +182,8 @@ function hostStat(){const c=cfg;let st='';
 if(c){st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. kārta</h3><p class=mu>${c.limit.k==='n'?'Kārtai nav limita, nākamo kārtu sāc pats':(c.limit.k==='h'?c.limit.v+' partijas katrā galdā':c.limit.v+' minūtes (laiks sākas tikai tad, kad nospied „Sākt”)')}</p>${c.limit.k==='t'?tmCtl():''}
 <small class=mu>Nospied „Rediģēt” pie galda, tad spied uz diviem spēlētājiem, lai samainītu viņus vietām (kamēr galdos vēl nav partiju).</small>${c.tables.map((t,i)=>`<div class=h><b>${esc(t.n)}</b> · <small>${prog(i)}${done(i)?' ✅':''}</small> <button style="min-height:0;padding:4px 12px;float:right" onclick="edT(${i})">${ed===i?'Gatavs':'Rediģēt'}</button><div style="clear:both">${ed===null?t.players.map(esc).join(', '):t.players.map((p,j)=>`<button class="${psel&&psel.i===i&&psel.j===j?'on':''}" style="min-height:0;padding:6px 10px" onclick="selP(${i},${j})">${esc(p)}</button>`).join('')}</div></div>`).join('')}
 ${outUI()}
-<div class=lbl style="margin-top:14px">Pievienot spēlētājus (bez ierobežojumiem)</div>
-<div class=bar style="gap:8px;align-items:stretch"><input id=newPl placeholder="Vārds vai vārdi (jauni rindiņā vai atdalīti ar komatu)" style="flex:1"><button class=pri style="min-height:0;padding:8px 14px" onclick="addPlayersHost()">+ Pievienot</button></div>
-<small class=mu>Var pievienot jebkuru skaitu spēlētāju. Nākamajā kārtā viņi tiks iekļauti sēdēšanā, ja iespējams sadalīt pa 3–4.</small>
-<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}</div>`}
+<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}
+<div class=bar style="margin-top:14px;gap:8px;align-items:stretch"><input id=newPl placeholder="pievieno speletajus" style="flex:1"><button class=pri style="min-height:0;padding:8px 14px" onclick="addPlayersHost()">+</button></div></div>`}
 return st}
 let psel=null,ed=null;
 function edT(i){ed=ed===i?null:i;psel=null;render()}
@@ -218,7 +216,7 @@ function hostV(){return hdr('Rīkotāja panelis')+(cfg?`<div id=hs>${hostStat()}
 function endT(){if(confirm('Beigt turnīru? Visi dati tiks dzēsti. Vispirms lejupielādē Excel!')){ending=true;api('/api/t/'+cur,'DELETE',null,1).then(()=>{delete myT[cur];ls.set('myT',myT);go('home')}).catch(e=>{ending=false;alert('Neizdevās: '+e.message)})}}
 function nextRound(){const St=stand(),act=cfg.players.filter(p=>!(cfg.out||[]).includes(p));if(!layout(act.length))return alert('Nākamajai kārtai paliek '+act.length+' spēlētāji, tos nevar sadalīt pa 3–4 (vajag 3, 4 vai vismaz 6). Pielāgo sarakstu.');if(cfg.total&&cfg.round>=cfg.total&&!confirm('Plānotās '+cfg.total+' kārtas jau izspēlētas. Sākt vēl vienu?'))return;if(!confirm('Sākt '+(cfg.round+1)+'. kārtu? Spēlētājus sēdinās pēc līdzšinējiem rezultātiem: pēc lielajiem punktiem, tad pēc mazo punktu bilances.'))return;
 const o=shuffle(act).sort((a,b)=>St.lp[b]-St.lp[a]||St.sm[b]-St.sm[a]);
-api('/api/t/'+cur+'/cfg','POST',{...cfg,hist:[...(cfg.hist||[]),{round:cfg.round,tables:cfg.tables}],round:cfg.round+1,start:Date.now(),tm:tmIdle(),tables:seat(o)},1).catch(e=>alert('Neizdevās: '+e.message))}
+tbl=null;try{ls.set('tbl_'+cur,null)}catch(e){}api('/api/t/'+cur+'/cfg','POST',{...cfg,hist:[...(cfg.hist||[]),{round:cfg.round,tables:cfg.tables}],round:cfg.round+1,start:Date.now(),tm:tmIdle(),tables:seat(o)},1).catch(e=>alert('Neizdevās: '+e.message))}
 
 
 // ---- kārtas laika vadība (tikai rīkotājs) ----
@@ -371,10 +369,9 @@ const sbKey=()=>'sb_'+cur+'_'+cfg.round+'_'+tbl;
 function startBanner(T,rs){if(rs.length||ls.get(sbKey(),0))return '';
 const dn=H&&drawnDl[sbKey()]&&H.pl[H.dealer]===drawnDl[sbKey()]?drawnDl[sbKey()]:null;
 if(!dn&&!drawing&&H&&H.pl&&H.pl.length){setTimeout(()=>{if(!drawnDl[sbKey()]&&!drawing)drawDl()},80)}
-return `<div class=card style="border-color:#c62828;box-shadow:inset 0 0 0 2px #c62828;border-width:2px;border-style:solid"><div class=bar><b style="font-size:17px">🃏 ${cfg.round}. kārta sākas!</b><button onclick="skipStart()" style="min-height:0;padding:4px 12px" title="Aizvērt">✕</button></div>
+return `<div class="card sbanner" style="border:2px solid #c62828!important;box-shadow:0 0 0 1px #c62828,inset 0 0 0 1px #c62828"><div class=bar><b style="font-size:17px">🃏 ${cfg.round}. kārta sākas!</b><button onclick="skipStart()" style="min-height:0;padding:4px 12px;border:none" title="Aizvērt">✕</button></div>
 <p style="margin:6px 0">Ja vajag, nomaini spēlētāju secību</p>
-<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button>
-${dn?`<p style="margin:6px 0">Pirmais dala: <b style="color:var(--gd)">${esc(dn)}</b></p>`:''}</div>`}
+<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`}
 function skipStart(){ls.set(sbKey(),1);render()}
 function drawDl(){if(!H||drawing||!cfg)return;const n=H.pl.length,key=sbKey();ordEd=false;dlPick=false;drawing=true;render();
 const k0=Math.max(0,H.dealer),fin=Math.floor(Math.random()*n),T=n*3+((fin-k0+n)%n);let i=0;
@@ -452,15 +449,18 @@ function orderEd(pl,fn){return `<details class=card><summary><b>Sēdvietu secīb
 function dgS(e,h){DG=h.parentNode;DG.style.opacity=.6;h.setPointerCapture(e.pointerId)}
 function dgM(e){if(!DG)return;const el=document.elementFromPoint(e.clientX,e.clientY),r=el&&el.closest&&el.closest('[data-i]');if(!r||r===DG||r.parentNode!==DG.parentNode)return;const b=r.getBoundingClientRect(),hz=r.parentNode.classList.contains('sb'),bf=hz?e.clientX<b.left+b.width/2:e.clientY<b.top+b.height/2;r.parentNode.insertBefore(DG,bf?r:r.nextSibling)}
 function dgE(){if(!DG)return;DG.style.opacity=1;DG=null;const l=$('#ol');window[l.dataset.fn]([...l.children].map(x=>+x.dataset.i))}
-function ordS(ix){solo.players=ix.map(i=>solo.players[i]);svSolo();render()}
-function ordT(ix){const pl=ix.map(i=>cfg.tables[tbl].players[i]);api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl}).catch(e=>alert('Neizdevās: '+e.message))}
+function ordS(ix){const old=solo.players,pl=ix.map(i=>old[i]),dn=H&&H.pl?H.pl[H.dealer]:null;solo.players=pl;if(H){H.pl=pl;if(dn){const ni=pl.indexOf(dn);if(ni>=0)H.dealer=ni}}svSolo();render()}
+function ordT(ix){const old=cfg.tables[tbl].players,pl=ix.map(i=>old[i]),dn=H&&H.pl?H.pl[H.dealer]:null;
+cfg.tables[tbl].players=pl;if(H){H.pl=pl;if(dn){const ni=pl.indexOf(dn);if(ni>=0)H.dealer=ni}}
+const key=sbKey();if(dn&&drawnDl[key])drawnDl[key]=dn;
+api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl}).catch(e=>alert('Neizdevās: '+e.message))}
 // ---- partijas ievade ----
 let saver=null;
 function autoDl(pl,rs){for(let k=rs.length-1;k>=0;k--){if(rs[k].dl){const i=pl.indexOf(rs[k].dl);if(i>=0)return (i+1)%pl.length}}return 0}
 let pendDl=null;
 function dlFor(pl,rs){let d=autoDl(pl,rs);if(pendDl&&rs.length===pendDl.n){const i=pl.indexOf(pendDl.p);if(i>=0)d=i;pendDl=null}return d}
 function initH(pl,rs){rs=rs||[];
-if(!H||H.pl.join('|')!==pl.join('|'))H={pl,dealer:dlFor(pl,rs),n:rs.length,chg:false,main:null,g:null,o:null,c:{}};
+if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);try{const dn=drawnDl[sbKey()];if(dn){const i=pl.indexOf(dn);if(i>=0)d=i}}catch(e){}H={pl,dealer:d,n:rs.length,chg:false,main:null,g:null,o:null,c:{}}}
 else if(H.n!==rs.length){H.n=rs.length;H.dealer=dlFor(pl,rs);if(pl.length>3&&H.main===pl[H.dealer])H.main=null}
 H.rs=rs}
 let ordEd=false,dlPick=false;
