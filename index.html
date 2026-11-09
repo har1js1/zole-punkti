@@ -191,6 +191,8 @@ ${outUI()}
 <div class=lbl>Kārtu skaits</div><div class=bar><input id=hsTr type=number min=1 value="${c.total||7}" style="flex:1;${c.total?'':'display:none'}"><label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input id=hsTnl type=checkbox style="width:auto;margin:0" ${c.total?'':'checked'} onchange="$('#hsTr').style.display=this.checked?'none':''"> bez limita</label></div>
 <div class=lbl>Lielie punkti galdā (pa vietām)</div><div class=bar>${[0,1,2,3].map(i=>`<label style="flex:1;font-size:12px;color:var(--mu)">${i+1}. vieta<input id=hsLq${i} type=number step=any inputmode=decimal value="${lp[i]!=null?lp[i]:[6,4,2,0][i]}"></label>`).join('')}</div>
 ${rin(c.rules||DEF,false)}
+<label style="display:flex;align-items:center;gap:8px;margin-top:12px;cursor:pointer"><input id=hsShowOut type=checkbox style="width:auto;margin:0" ${c.showOut?'checked':''}> Rādīt noņemtos spēlētājus tabulās</label>
+<small class=mu>Ja izslēgts, noņemtie (izslēgtie no nākamās kārtas) spēlētāji nerādās pilnajā tabulā un statistikā.</small>
 <button class=pri style="margin-top:10px;min-height:0;padding:8px 14px" onclick="saveHostCfg()">Saglabāt iestatījumus</button>
 </details>
 </div>`}
@@ -214,8 +216,9 @@ const v=k==='n'?0:Math.max(1,parseInt($('#hsLv')&&$('#hsLv').value)||1);
 const total=($('#hsTnl')&&$('#hsTnl').checked)?0:Math.max(1,parseInt($('#hsTr')&&$('#hsTr').value)||7);
 const lp=[0,1,2,3].map(i=>{const el=$('#hsLq'+i);return el?parseFloat(String(el.value).replace(',','.')):((cfg.lp||[6,4,2,0])[i])});
 if(lp.some(x=>!isFinite(x)))return alert('Ievadi lielos punktus visām 4 vietām');
+const showOut=!($('#hsShowOut')&&!$('#hsShowOut').checked);
 let rules=cfg.rules;try{const rr=readRules();if(rr)rules=rr}catch(e){}
-api('/api/t/'+cur+'/cfg','POST',{...cfg,name,limit:{k,v},total,lp,rules},1).then(()=>alert('Iestatījumi saglabāti')).catch(e=>alert('Neizdevās: '+e.message))}
+api('/api/t/'+cur+'/cfg','POST',{...cfg,name,limit:{k,v},total,lp,rules,showOut},1).then(()=>alert('Iestatījumi saglabāti')).catch(e=>alert('Neizdevās: '+e.message))}
 function addPlayersHost(){if(!cfg)return;const el=document.getElementById('newPl');if(!el)return;const raw=(el.value||'').trim();if(!raw)return alert('Ieraksti vismaz vienu vārdu');
 const names=raw.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;
 const exist=new Set(cfg.players.map(p=>p.toLowerCase()));const add=[];
@@ -279,13 +282,13 @@ return `<details class=h ${tog('t'+ti)}><summary><b>${esc(t.n)}</b> <small class
 <button class=pri style="min-height:0;padding:8px 14px" onclick="edSave('${r.id}')">Saglabāt</button><button class=danger style="min-height:0;padding:8px 14px" onclick="edDel('${r.id}')">Dzēst partiju</button></div>`).join('')||'<small class=mu>Nav partiju.</small>'}</details>`}).join('');
 return `<details class=card ${tog('main')}><summary><b>Labot partiju punktus</b></summary><div class=bar style="margin-top:8px"><span style="flex:1">Kārta:</span>${sel}</div><small class=mu>Ieraksti pareizos punktus katram spēlētājam un spied „Saglabāt”. Kopsummas un tabulas pārrēķinās uzreiz.</small>${body}</details>`}
 // ---- TV ----
-function calcStats(){const S={},mk=p=>S[p]||(S[p]={p,n:0,pts:0,L:[0,0],Z:[0,0],M:[0,0],G:0});cfg.players.forEach(mk);
+function calcStats(){const S={},mk=p=>S[p]||(S[p]={p,n:0,pts:0,L:[0,0],Z:[0,0],M:[0,0],G:0});const out=new Set(cfg.out||[]);cfg.players.forEach(p=>{if(cfg.showOut||!out.has(p))mk(p)});
 tRounds().forEach(r=>{if(!r.d)return;for(const p in r.d){const x=mk(p);x.n++;x.pts+=r.d[p]}
 if(r.g==='Custom'||r.g==='Pule')return;
 let m=r.m;if(!m){const e=Object.entries(r.d),po=e.filter(y=>y[1]>0),ne=e.filter(y=>y[1]<0);m=po.length===1?po[0][0]:ne.length===1?ne[0][0]:null}
 if(!m||!S[m])return;const k={'Lielais':'L','Zole':'Z','Mazā zole':'M'}[r.g];
 if(k){S[m][k][1]++;if(r.d[m]>0)S[m][k][0]++}else if(r.g==='Galdiņš')S[m].G++});
-return Object.values(S).sort((a,b)=>b.pts-a.pts)}
+return Object.values(S).filter(x=>cfg.showOut||!(cfg.out||[]).includes(x.p)).sort((a,b)=>b.pts-a.pts)}
 const sc2=a=>a[1]?a[1]+' ('+Math.round(a[0]*100/a[1])+'%)':'–';
 let statSort='pts',statDir='desc',statSel=[],SCD=[];
 const SCC=['#d8b65c','#5bb690','#ff8a7e','#6fb1ff','#c792ea','#ffa94d','#e8eeee','#f06fa8'];
@@ -323,7 +326,7 @@ const ex=Math.max(1,Math.ceil(N/10));let xt='';for(let i=0;i<=N;i+=ex)xt+=`<text
 const lines=ser.map(q=>`<polyline points="${q.pts.map(z=>X(z.x)+','+Y(z.v)).join(' ')}" fill="none" stroke="${q.c}" stroke-width="2.5" stroke-linejoin="round"/>`).join('');
 const dots=ser.map(q=>q.pts.filter(z=>z.di!==undefined).map(z=>`<circle data-d="${z.di}" cx="${X(z.x)}" cy="${Y(z.v)}" r="4" fill="${q.c}" stroke="#0a191e" stroke-width="1.5" style="cursor:pointer" onclick="sdot(${z.di})"/><circle cx="${X(z.x)}" cy="${Y(z.v)}" r="13" fill="transparent" style="cursor:pointer" onclick="sdot(${z.di})"/>`).join('')).join('');
 const leg=ser.map(q=>`<span class=chip style="background:${q.c};color:#0a191e;cursor:pointer" title="Spied, lai noņemtu" data-p="${esc(q.p)}" onclick="stP(this.dataset.p)">${esc(q.p)} ${fmt(q.v)} ✕</span>`).join('');
-return `<div class=card><h3>Punktu gaita (pa spēlētāja partijām)</h3><div>${leg}<button onclick="stClr()" style="min-height:0;padding:4px 12px">Notīrīt</button></div>
+return `<div class=card><h3>Punktu gaita</h3><div>${leg}<button onclick="stClr()" style="min-height:0;padding:4px 12px">Notīrīt</button></div>
 <div style="overflow-x:auto"><svg id=sch viewBox="0 0 ${W} ${Hh}" style="width:100%;min-width:420px;height:auto;display:block">${grid}${zero}${rl}${lines}${dots}${xt}<text x="${(L+W-Rr)/2}" y="${Hh-4}" text-anchor="middle" style="fill:var(--mu);font-size:11px">spēlētāja partijas nr.</text></svg></div>
 <div id=sdet style="min-height:2.8em;margin-top:6px"><span class=mu>Spied uz punkta, lai redzētu partiju. Spied uz spēlētāja vārda leģendā, lai noņemtu no grafika.</span></div>
 <small class=mu>Līnija kāpj vai krīt tikai tajās partijās, kurās spēlētājs piedalījies. Zeltainās svītras — kārtu maiņa.</small></div>`}
@@ -332,7 +335,7 @@ function statsV(){if(!cfg)return hdr('Statistika')+'<div class=card>Ielādē…<
 const pct=a=>a[1]?a[0]/a[1]:0;
 const key=x=>{if(['L','Z','M'].includes(statSort)){if(statDir==='cnt')return x[statSort][1];return pct(x[statSort])}return x[statSort]};
 const rows=calcStats().sort((a,b)=>{const ka=key(a),kb=key(b);return(statDir==='asc'?ka-kb:kb-ka)||b.pts-a.pts});
-const th=(k,l)=>{const on=statSort===k;const mark=on?(statDir==='cnt'?' ↓':statDir==='asc'?' %↑':' %↓'):'';return `<th style="cursor:pointer;padding:6px 4px;${on?'color:var(--gd);text-decoration:underline':''}" onclick="stS('${k}')">${l}${mark}</th>`};
+const th=(k,l)=>{const on=statSort===k;let mark='';if(on){if(['L','Z','M'].includes(k))mark=statDir==='cnt'?' ↓':statDir==='asc'?' %↑':' %↓';else mark=statDir==='asc'?' ↑':' ↓'}return `<th style="cursor:pointer;padding:6px 4px;${on?'color:var(--gd);text-decoration:underline':''}" onclick="stS('${k}')">${l}${mark}</th>`};
 return hdr('Statistika')+`<div class=card style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;text-align:center"><tr class=mu><th style="text-align:left">Spēlētājs</th>${th('n','Partijas')}${th('L','Lielais')}${th('Z','Zole')}${th('M','Mazā zole')}${th('G','Galdiņš zaud.')}${th('pts','Punkti')}</tr>${rows.map(x=>`<tr data-p="${esc(x.p)}" onclick="stP(this.dataset.p)" style="border-top:1px solid var(--bd);cursor:pointer;${statSel.includes(x.p)?'background:rgba(216,182,92,.16)':''}"><td style="text-align:left;padding:8px 6px"><b>${statSel.includes(x.p)?`<span style="color:${scol(x.p)}">●</span> `:''}${esc(x.p)}</b></td><td>${x.n}</td><td>${sc2(x.L)}</td><td>${sc2(x.Z)}</td><td>${sc2(x.M)}</td><td>${x.G||'–'}</td><td style="color:${x.pts<0?'var(--neg)':'var(--gd)'};font-weight:700">${fmt(x.pts)}</td></tr>`).join('')}</table></div><small class=mu>Spied uz kolonnas nosaukuma, lai sakārtotu tabulu. Spied uz viena vai vairākiem spēlētājiem, lai zem tabulas redzētu viņu punktu grafiku.</small>${statChart()}`}
 function statRows(){const pc=a=>a[1]?Math.round(a[0]*100/a[1]):'';return [['Spēlētājs','Partijas','Lielais uzv.','Lielais kopā','Lielais %','Zole uzv.','Zole kopā','Zole %','Mazā zole uzv.','Mazā zole kopā','Mazā zole %','Galdiņš zaudēts','Punkti'],...calcStats().map(x=>[x.p,x.n,x.L[0],x.L[1],pc(x.L),x.Z[0],x.Z[1],pc(x.Z),x.M[0],x.M[1],pc(x.M),x.G,rn(x.pts)])]}
 let tvSel='t',tvMode='a',wasEnd=null,forgot=false;
@@ -358,8 +361,9 @@ tb.players.forEach(p=>{const a=rk(pl,ps,p),b=rk(St.lp,St.sm,p);res[p]=a>b?1:a<b?
 return res}
 function tvV(){if(!cfg)return hdr('Pilnā tabula')+'<div class=card>Ielādē…</div>';
 const rd=tvSel==='t'?null:+tvSel,St=stand(),tb0=rd?tablesOf(rd):[],tabs=rd&&tb0.length?tb0:cfg.tables,avail=innerHeight-200;
-const L=[];tabs.forEach((tb,i)=>tb.players.forEach(p=>L.push({p,i,lp:rd?(St.per[rd][p]||0):St.lp[p],sm:rd?(St.psm[rd][p]||0):St.sm[p]})));
-if(!rd)cfg.players.forEach(p=>{if(!L.some(x=>x.p===p))L.push({p,i:-1,lp:St.lp[p],sm:St.sm[p]})});
+const outSet=new Set((!cfg.showOut&&(cfg.out||[]))||[]);
+const L=[];tabs.forEach((tb,i)=>tb.players.forEach(p=>{if(!outSet.has(p))L.push({p,i,lp:rd?(St.per[rd][p]||0):St.lp[p],sm:rd?(St.psm[rd][p]||0):St.sm[p]})}));
+if(!rd)cfg.players.forEach(p=>{if(!outSet.has(p)&&!L.some(x=>x.p===p))L.push({p,i:-1,lp:St.lp[p],sm:St.sm[p]})});
 L.sort((a,b)=>b.lp-a.lp||b.sm-a.sm);const ar=rd?{}:arrows(L,St),same=(x,y)=>Math.abs(x.lp-y.lp)<1e-6&&Math.abs(x.sm-y.sm)<1e-6,rk=x=>L.findIndex(y=>same(x,y))+1;
 const bt=(on,fn,l)=>`<button class="${on?'on':''}" style="min-height:0;padding:6px 14px" onclick="${fn}">${l}</button>`;
 const chips=['t',...Array.from({length:cfg.round},(_,k)=>k+1)].map(x=>bt(String(x)===String(tvSel),`tvs('${x}')`,x==='t'?'Kopā':x+'. kārta')).join('')+'<span style="margin-left:12px"></span>'+bt(tvMode==='a','tvm(\'a\')','Tabula')+bt(tvMode==='g','tvm(\'g\')','Pa galdiem');
