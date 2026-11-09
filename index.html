@@ -105,7 +105,7 @@ es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete m
 function closeT(){if(es){es.close();es=null}}
 function loadList(){fetch('/api/list').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(l=>{SRV=true;list=l;if(view==='home'&&!jsel)render()}).catch(()=>{if(SRV){SRV=false;if(view==='home')render()}})}
 function enterT(t){cur=t;tbl=ls.get('tbl_'+t,null);openT();go('tmenu')}
-function go(v){if(!['tmenu','table','tv','host','stats'].includes(v)){closeT();cur=null;cfg=null;rounds=[]}if(v!=='admin')adm={};view=v;H=null;pendDl=null;tmOpenF=false;tmv=null;ordEd=false;dlPick=false;if(v==='home'){jsel=null;loadList()}render();scrollTo(0,0)}
+function go(v){if(!['tmenu','table','tv','host','stats'].includes(v)){closeT();cur=null;cfg=null;rounds=[]}if(v!=='admin')adm={};view=v;H=null;pendDl=null;tmOpenF=false;tmv=null;ordEd=false;dlPick=false;if(v==='table'&&cfg&&tbl!=null&&typeof done==='function'&&done(tbl)){tbl=null;ls.set('tbl_'+cur,null)}if(v==='home'){jsel=null;loadList()}render();scrollTo(0,0)}
 function render(){const f={home:homeV,solo:soloV,tv:tvV,table:tableV,host:hostV,tcreate:createV,tmenu:menuV,stats:statsV,admin:adminV}[view];$('#app').className=view==='tv'?'w wide':'w';$('#app').innerHTML=f();tick()}
 const hdr=t=>`<div class=bar><button onclick="go('${['table','tv','host','stats'].includes(view)?'tmenu':'home'}')">←</button><b>${esc(t)}</b></div>`;
 const tRounds=()=>cfg?rounds.filter(r=>r.tid===cfg.tid):[];
@@ -181,7 +181,11 @@ function leaveT(){if(confirm('Pamest turnīru šajā ierīcē? Vēlāk vajadzēs
 function hostStat(){const c=cfg;let st='';
 if(c){st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. kārta</h3><p class=mu>${c.limit.k==='n'?'Kārtai nav limita, nākamo kārtu sāc pats':(c.limit.k==='h'?c.limit.v+' partijas katrā galdā':c.limit.v+' minūtes (laiks sākas tikai tad, kad nospied „Sākt”)')}</p>${c.limit.k==='t'?tmCtl():''}
 <small class=mu>Nospied „Rediģēt” pie galda, tad spied uz diviem spēlētājiem, lai samainītu viņus vietām (kamēr galdos vēl nav partiju).</small>${c.tables.map((t,i)=>`<div class=h><b>${esc(t.n)}</b> · <small>${prog(i)}${done(i)?' ✅':''}</small> <button style="min-height:0;padding:4px 12px;float:right" onclick="edT(${i})">${ed===i?'Gatavs':'Rediģēt'}</button><div style="clear:both">${ed===null?t.players.map(esc).join(', '):t.players.map((p,j)=>`<button class="${psel&&psel.i===i&&psel.j===j?'on':''}" style="min-height:0;padding:6px 10px" onclick="selP(${i},${j})">${esc(p)}</button>`).join('')}</div></div>`).join('')}
-${outUI()}<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}</div>`}
+${outUI()}
+<div class=lbl style="margin-top:14px">Pievienot spēlētājus (bez ierobežojumiem)</div>
+<div class=bar style="gap:8px;align-items:stretch"><input id=newPl placeholder="Vārds vai vārdi (jauni rindiņā vai atdalīti ar komatu)" style="flex:1"><button class=pri style="min-height:0;padding:8px 14px" onclick="addPlayersHost()">+ Pievienot</button></div>
+<small class=mu>Var pievienot jebkuru skaitu spēlētāju. Nākamajā kārtā viņi tiks iekļauti sēdēšanā, ja iespējams sadalīt pa 3–4.</small>
+<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}</div>`}
 return st}
 let psel=null,ed=null;
 function edT(i){ed=ed===i?null:i;psel=null;render()}
@@ -195,6 +199,21 @@ return `<div class=lbl style="margin-top:14px">Spēlētāji nākamajai kārtai (
 <p class=mu>Nākamajā kārtā: ${act.length} spēlētāji ${L?'→ '+L.length+' galdi ('+L.join('+')+')':'<span class=n>nevar sadalīt pa 3–4</span>'}</p>`}
 function setOut(out){api('/api/t/'+cur+'/cfg','POST',{...cfg,out},1).catch(e=>alert('Neizdevās: '+e.message))}
 function togOut(i){const o=cfg.out||[];if(i<0)return setOut([]);const p=cfg.players[i];setOut(o.includes(p)?o.filter(x=>x!==p):[...o,p])}
+function addPlayersHost(){if(!cfg)return;const el=document.getElementById('newPl');if(!el)return;const raw=(el.value||'').trim();if(!raw)return alert('Ieraksti vismaz vienu vārdu');
+const names=raw.split(/[\n,;]+/).map(s=>s.trim()).filter(Boolean);if(!names.length)return;
+const exist=new Set(cfg.players.map(p=>p.toLowerCase()));const add=[];
+for(const n of names){if(exist.has(n.toLowerCase()))continue;exist.add(n.toLowerCase());add.push(n)}
+if(!add.length)return alert('Visi jau ir sarakstā');
+api('/api/t/'+cur+'/cfg','POST',{...cfg,players:[...cfg.players,...add]},1).then(()=>{el.value='';render()}).catch(e=>alert('Neizdevās: '+e.message))}
+function exportReady(){if(!cfg)return;const St=stand(),names=cfg.players.slice().sort((a,b)=>St.lp[b]-St.lp[a]||St.sm[b]-St.sm[a]);
+const rows=[['Vieta','Spēlētājs','Lielie punkti','Mazie punkti'],...names.map((p,i)=>[i+1,p,rn(St.lp[p]),rn(St.sm[p])])];
+const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n');
+const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));a.download=(cfg.name||'zole')+'_rezultati.csv';a.click();URL.revokeObjectURL(a.href);
+const all=tRounds(),par=[['Kārta','Galds','Partija','Spēle','Dalītājs','Spēlētājs','Punkti']];
+all.slice().sort((a,b)=>a.t-b.t).forEach(r=>{const tb=(r.rd===cfg.round?cfg.tables:((cfg.hist||[]).find(h=>h.round===r.rd)||{tables:[]}).tables);const tn=(tb[r.table]||{}).n||('Galds '+(r.table+1));
+Object.keys(r.d||{}).forEach(p=>par.push([r.rd,tn,r.id,r.g||'',r.dl||'',p,r.d[p]]))});
+const csv2=par.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(';')).join('\n');
+setTimeout(()=>{const a2=document.createElement('a');a2.href=URL.createObjectURL(new Blob(['\ufeff'+csv2],{type:'text/csv;charset=utf-8'}));a2.download=(cfg.name||'zole')+'_partijas.csv';a2.click();URL.revokeObjectURL(a2.href)},300)}
 function hostV(){return hdr('Rīkotāja panelis')+(cfg?`<div id=hs>${hostStat()}</div>${editUI()}<button class=danger onclick="endT()">Beigt un dzēst turnīru</button>`:'<div class="card mu">Ielādē…</div>')}
 function endT(){if(confirm('Beigt turnīru? Visi dati tiks dzēsti. Vispirms lejupielādē Excel!')){ending=true;api('/api/t/'+cur,'DELETE',null,1).then(()=>{delete myT[cur];ls.set('myT',myT);go('home')}).catch(e=>{ending=false;alert('Neizdevās: '+e.message)})}}
 function nextRound(){const St=stand(),act=cfg.players.filter(p=>!(cfg.out||[]).includes(p));if(!layout(act.length))return alert('Nākamajai kārtai paliek '+act.length+' spēlētāji, tos nevar sadalīt pa 3–4 (vajag 3, 4 vai vismaz 6). Pielāgo sarakstu.');if(cfg.total&&cfg.round>=cfg.total&&!confirm('Plānotās '+cfg.total+' kārtas jau izspēlētas. Sākt vēl vienu?'))return;if(!confirm('Sākt '+(cfg.round+1)+'. kārtu? Spēlētājus sēdinās pēc līdzšinējiem rezultātiem: pēc lielajiem punktiem, tad pēc mazo punktu bilances.'))return;
@@ -351,9 +370,10 @@ let drawing=false,drawnDl={};
 const sbKey=()=>'sb_'+cur+'_'+cfg.round+'_'+tbl;
 function startBanner(T,rs){if(rs.length||ls.get(sbKey(),0))return '';
 const dn=H&&drawnDl[sbKey()]&&H.pl[H.dealer]===drawnDl[sbKey()]?drawnDl[sbKey()]:null;
-return `<div class=card style="border-color:var(--gd);box-shadow:inset 0 0 0 2px var(--gd)"><div class=bar><b style="font-size:17px">🃏 ${cfg.round}. kārta sākas!</b><button onclick="skipStart()" style="min-height:0;padding:4px 12px" title="Aizvērt">✕</button></div>
-<p style="margin:6px 0">Sasēdieties pēc secības, kāda redzama zemāk virs punktiem. Ja vajag, nomaini secību, un tad izlozē, kurš dala pirmais.</p>
-<button class="${ordEd?'on':''}" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību'}</button><button class=pri onclick="drawDl()" ${drawing?'disabled':''}>🎲 ${dn?'Izlozēt vēlreiz':'Izlozēt dalītāju'}</button>
+if(!dn&&!drawing&&H&&H.pl&&H.pl.length){setTimeout(()=>{if(!drawnDl[sbKey()]&&!drawing)drawDl()},80)}
+return `<div class=card style="border-color:#c62828;box-shadow:inset 0 0 0 2px #c62828;border-width:2px;border-style:solid"><div class=bar><b style="font-size:17px">🃏 ${cfg.round}. kārta sākas!</b><button onclick="skipStart()" style="min-height:0;padding:4px 12px" title="Aizvērt">✕</button></div>
+<p style="margin:6px 0">Ja vajag, nomaini spēlētāju secību</p>
+<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button>
 ${dn?`<p style="margin:6px 0">Pirmais dala: <b style="color:var(--gd)">${esc(dn)}</b></p>`:''}</div>`}
 function skipStart(){ls.set(sbKey(),1);render()}
 function drawDl(){if(!H||drawing||!cfg)return;const n=H.pl.length,key=sbKey();ordEd=false;dlPick=false;drawing=true;render();
@@ -446,7 +466,7 @@ H.rs=rs}
 let ordEd=false,dlPick=false;
 function togOrd(){ordEd=!ordEd;dlPick=false;render()}
 function togDlPick(){dlPick=!dlPick;render()}
-const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:7px 12px;font-size:14px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību'}</button></div>`;
+const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`;
 function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
 function hand(pl,sv,rs){saver=sv;initH(pl,rs);
 const P=pl.length>3?pl.filter((_,i)=>i!==H.dealer):pl,d=deltas();
