@@ -181,6 +181,10 @@ function leaveT(){if(confirm('Pamest turnīru šajā ierīcē? Vēlāk vajadzēs
 function hostStat(){const c=cfg;let st='';
 if(c){const lk=c.limit||{k:'n',v:0},lp=c.lp||[6,4,2,0];
 st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. kārta</h3><p class=mu>${lk.k==='n'?'Kārtai nav limita, nākamo kārtu sāc pats':(lk.k==='h'?lk.v+' partijas katrā galdā':lk.v+' minūtes (laiks sākas tikai tad, kad nospied „Sākt”)')}</p>${lk.k==='t'?tmCtl():''}
+<small class=mu>Nospied „Rediģēt” pie galda, tad spied uz diviem spēlētājiem, lai samainītu viņus vietām (kamēr galdos vēl nav partiju).</small>${c.tables.map((t,i)=>`<div class=h><b>${esc(t.n)}</b> · <small>${prog(i)}${done(i)?' ✅':''}</small> <button style="min-height:0;padding:4px 12px;float:right" onclick="edT(${i})">${ed===i?'Gatavs':'Rediģēt'}</button><div style="clear:both">${ed===null?t.players.map(esc).join(', '):t.players.map((p,j)=>`<button class="${psel&&psel.i===i&&psel.j===j?'on':''}" style="min-height:0;padding:6px 10px" onclick="selP(${i},${j})">${esc(p)}</button>`).join('')}</div></div>`).join('')}
+${outUI()}
+<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}
+<div class=bar style="margin-top:14px;gap:8px;align-items:stretch"><input id=newPl placeholder="pievieno speletajus" style="flex:1"><button class=pri style="min-height:0;padding:8px 14px" onclick="addPlayersHost()">+</button></div>
 <details class=h style="margin:10px 0"><summary><b>Turnīra iestatījumi</b></summary>
 <div class=lbl>Nosaukums</div><input id=hsName value="${esc(c.name||'')}" style="margin-bottom:8px">
 <div class=lbl>Kārta beidzas</div><div class=bar><select id=hsLk style="flex:1" onchange="const v=this.value;$('#hsLv').style.display=v==='n'?'none':'';$('#hsLv').value=v==='n'?0:($('#hsLv').value||1)"><option value=h ${lk.k==='h'?'selected':''}>pēc partiju skaita galdā</option><option value=t ${lk.k==='t'?'selected':''}>pēc laika (minūtes)</option><option value=n ${lk.k==='n'?'selected':''}>bez limita</option></select><input id=hsLv type=number min=1 value="${lk.k==='n'?24:lk.v}" style="width:90px;${lk.k==='n'?'display:none':''}"></div>
@@ -189,10 +193,7 @@ st=`<div class=card><h3>${esc(c.name)} · ${c.round}${c.total?'/'+c.total:''}. k
 ${rin(c.rules||DEF,false)}
 <button class=pri style="margin-top:10px;min-height:0;padding:8px 14px" onclick="saveHostCfg()">Saglabāt iestatījumus</button>
 </details>
-<small class=mu>Nospied „Rediģēt” pie galda, tad spied uz diviem spēlētājiem, lai samainītu viņus vietām (kamēr galdos vēl nav partiju).</small>${c.tables.map((t,i)=>`<div class=h><b>${esc(t.n)}</b> · <small>${prog(i)}${done(i)?' ✅':''}</small> <button style="min-height:0;padding:4px 12px;float:right" onclick="edT(${i})">${ed===i?'Gatavs':'Rediģēt'}</button><div style="clear:both">${ed===null?t.players.map(esc).join(', '):t.players.map((p,j)=>`<button class="${psel&&psel.i===i&&psel.j===j?'on':''}" style="min-height:0;padding:6px 10px" onclick="selP(${i},${j})">${esc(p)}</button>`).join('')}</div></div>`).join('')}
-${outUI()}
-<button class=pri style="margin-top:10px" onclick="nextRound()">Sākt ${c.round+1}. kārtu (pēc rezultātiem)</button> <button onclick="exportT()">⬇ Lejupielādēt Excel</button> <button onclick="exportReady()">⬇ Gatavi faili (CSV)</button>${c.round>1?`<button onclick="prevRound()">↩ Atgriezties ${c.round-1}. kārtā</button>`:''}
-<div class=bar style="margin-top:14px;gap:8px;align-items:stretch"><input id=newPl placeholder="pievieno speletajus" style="flex:1"><button class=pri style="min-height:0;padding:8px 14px" onclick="addPlayersHost()">+</button></div></div>`}
+</div>`}
 return st}
 let psel=null,ed=null;
 function edT(i){ed=ed===i?null:i;psel=null;render()}
@@ -367,6 +368,8 @@ window.addEventListener('resize',()=>{if(view==='tv')render()});
 function tableV(){if(!cfg)return hdr('Galds')+'<div class=card>Ielādē…</div>';
 if(tbl==null||!cfg.tables[tbl])return hdr('Izvēlies savu galdu')+cfg.tables.map((t,i)=>`<button class=big onclick="pick(${i})"><b>${esc(t.n)}</b><br><small>${t.players.map(esc).join(', ')}</small></button>`).join('');
 const T=cfg.tables[tbl],rs=hands(tbl).sort((a,b)=>a.t-b.t),dn=cfg.tables.filter((_,i)=>done(i)).length;
+initH(T.players,rs);
+if(!rs.length&&!ls.get(sbKey(),0)&&!drawnDl[sbKey()]&&!drawing&&T.players.length){const k=sbKey();if(!drawSched[k]){drawSched[k]=1;setTimeout(()=>{if(view==='table'&&tbl!=null&&!drawnDl[k]&&!drawing&&!ordEd)drawDl()},120)}}
 return `<div class=bar><button onclick="go('tmenu')">←</button><b>${esc(T.n)} · ${cfg.round}. kārta</b><button onclick="pick(null)">Mainīt galdu</button></div>
 ${startBanner(T,rs)}${ordBtn()}${bnr()}${board(T.players,rs,'ordT')}${tform(T,rs)}${hist(rs,'undoT()')}`}
 const endAt=()=>{const s=tmS();return s.run?s.at+s.left:Infinity};
@@ -382,16 +385,15 @@ function saveT(rec){rec.tid=cfg.tid;rec.table=tbl;rec.rd=cfg.round;api('/api/t/'
 function undoT(){const rs=hands(tbl).sort((a,b)=>b.t-a.t);if(rs[0]&&confirm('Dzēst pēdējo partiju?')){pendDl=rs[0].dl?{p:rs[0].dl,n:rs.length-1}:null;api('/api/t/'+cur+'/round/'+rs[0].id,'DELETE').then(()=>render()).catch(e=>{pendDl=null;alert(e.message)})}}
 
 // ---- kārtas sākums galdā: secība un dalītāja izloze ----
-let drawing=false,drawnDl={};
+let drawing=false,drawnDl={},drawSched={};
 const sbKey=()=>'sb_'+cur+'_'+cfg.round+'_'+tbl;
 function startBanner(T,rs){if(rs.length||ls.get(sbKey(),0))return '';
 const dn=H&&drawnDl[sbKey()]&&H.pl[H.dealer]===drawnDl[sbKey()]?drawnDl[sbKey()]:null;
-if(!dn&&!drawing&&H&&H.pl&&H.pl.length){setTimeout(()=>{if(!drawnDl[sbKey()]&&!drawing)drawDl()},80)}
 return `<div class="card sbanner" style="border:2px solid #c62828!important;box-shadow:0 0 0 1px #c62828,inset 0 0 0 1px #c62828"><div class=bar><b style="font-size:17px">🃏 ${cfg.round}. kārta sākas!</b><button onclick="skipStart()" style="min-height:0;padding:4px 12px;border:none" title="Aizvērt">✕</button></div>
 <p style="margin:6px 0">Ja vajag, nomaini spēlētāju secību</p>
 <button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`}
 function skipStart(){ls.set(sbKey(),1);render()}
-function drawDl(){if(!H||drawing||!cfg)return;const n=H.pl.length,key=sbKey();ordEd=false;dlPick=false;drawing=true;render();
+function drawDl(){if(!H||drawing||!cfg||ordEd)return;const n=H.pl.length,key=sbKey();ordEd=false;dlPick=false;drawing=true;render();
 const k0=Math.max(0,H.dealer),fin=Math.floor(Math.random()*n),T=n*3+((fin-k0+n)%n);let i=0;
 const step=()=>{i++;document.querySelectorAll('.sb>div').forEach((e,j)=>e.classList.toggle('dl',j===(k0+i)%n));
 if(i<T)setTimeout(step,70+i*9);else{drawing=false;if(H&&H.pl.length===n){H.dealer=fin;drawnDl[key]=H.pl[fin];if(n>3&&H.main===H.pl[fin])H.main=null}render()}};
