@@ -114,7 +114,7 @@ const hr=()=>{const a=document.activeElement;if(a&&a.classList&&(a.classList.con
 const api=(p,m,b,host)=>{const t=myT[cur]||{};return fetch(p,{method:m,headers:{'Content-Type':'application/json','X-Token':t.token||'','X-Host':host&&t.host?t.host:''},body:b?JSON.stringify(b):undefined}).then(r=>{if(!r.ok)throw new Error(r.status===403?'nav atļaujas':'servera kļūda '+r.status);return r.json().catch(()=>({}))})};
 function openT(){closeT();const m=myT[cur];if(!m)return;cfg=null;rounds=[];
 es=new EventSource('/events?t='+cur+'&k='+m.token);
-es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete myT[cur];ls.set('myT',myT);if(!ending)alert('Turnīrs ir beidzies.');ending=false;go('home');return}if(d.type==='add'){if(!rounds.some(r=>r.id===d.round.id))rounds.push(d.round)}else if(d.type==='del'){rounds=rounds.filter(r=>r.id!==d.id)}else if(d.type==='upd'){rounds=rounds.map(r=>r.id===d.round.id?d.round:r)}else if(d.type==='cfg'){const _pr=cfg&&cfg.round;cfg=d.cfg&&d.cfg.limit?d.cfg:null;if(cfg&&_pr!=null&&cfg.round!==_pr){tbl=null;try{ls.set('tbl_'+cur,null)}catch(e){}}}else{cfg=d.cfg&&d.cfg.limit?d.cfg:null;rounds=d.rounds||[]}hr()}}
+es.onmessage=e=>{const d=JSON.parse(e.data);if(d.gone||d.type==='gone'){delete myT[cur];ls.set('myT',myT);if(!ending)alert('Turnīrs ir beidzies.');ending=false;go('home');return}if(d.type==='add'){if(!rounds.some(r=>r.id===d.round.id))rounds.push(d.round)}else if(d.type==='del'){rounds=rounds.filter(r=>r.id!==d.id)}else if(d.type==='upd'){rounds=rounds.map(r=>r.id===d.round.id?d.round:r)}else if(d.type==='cfg'){const _pr=cfg&&cfg.round;cfg=d.cfg&&d.cfg.limit?d.cfg:null;if(cfg&&_pr!=null&&cfg.round!==_pr){tbl=null;try{ls.set('tbl_'+cur,null)}catch(e){}}if(H&&H.pl&&cfg&&tbl!=null&&cfg.tables&&cfg.tables[tbl]&&cfg.tables[tbl].dl){const _i=H.pl.indexOf(cfg.tables[tbl].dl);if(_i>=0){H.dealer=_i;drawnDl[sbKey()]=cfg.tables[tbl].dl}}}else{cfg=d.cfg&&d.cfg.limit?d.cfg:null;rounds=d.rounds||[]}if(H&&H.pl&&cfg&&tbl!=null&&cfg.tables&&cfg.tables[tbl]&&cfg.tables[tbl].dl){const _j=H.pl.indexOf(cfg.tables[tbl].dl);if(_j>=0){H.dealer=_j;try{drawnDl[sbKey()]=cfg.tables[tbl].dl}catch(e){}}}hr()}}
 function closeT(){if(es){es.close();es=null}}
 function loadList(){fetch('/api/list').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(l=>{SRV=true;list=l;if(view==='home'&&!jsel)render()}).catch(()=>{if(SRV){SRV=false;if(view==='home')render()}})}
 function enterT(t){cur=t;tbl=ls.get('tbl_'+t,null);openT();go('tmenu')}
@@ -155,7 +155,7 @@ function lpv(){const pl=[...new Set($('#tp').value.split(/[\n,;]+/).map(s=>s.tri
 $('#lp').innerHTML=!pl.length?'':l?`${pl.length} spēlētāji → ${l.length} galdi (${l.map(x=>x).join('+')})`:`<span class=n>${pl.length} spēlētāji: nevar sadalīt pa 3–4 (vajag 3, 4 vai 6 un vairāk)</span>`}
 // ---- sākums ----
 
-let archList=null,archView=null;
+let archList=null,archView=null,infoOpen=false;
 function loadArch(){fetch('/api/archive').then(r=>r.json()).then(l=>{archList=l||[];render()}).catch(()=>{archList=[];render()})}
 function histListV(){return hdr('Turnīru vēsture')+(archList===null?'<div class=card>Ielādē…</div>':(archList.length?archList.map(a=>`<button class=big onclick="openArch('${a.id}')"><b>${esc(a.name)}</b><br><small>${a.players.length} spēlētāji · ${a.rounds} partijas · ${fmtT(a.savedAt)}</small></button>`).join(''):'<div class="card mu">Vēl nav saglabātu turnīru. Rīkotāja panelī spied „Beigt turnīru un saglabāt”.</div>'))}
 function openArch(id){fetch('/api/archive/'+id).then(r=>r.ok?r.json():Promise.reject()).then(a=>{archView=a;view='histmenu';render();scrollTo(0,0)}).catch(()=>alert('Neizdevās ielādēt'))}
@@ -195,7 +195,18 @@ ${SRV?`<div class=home-grid>
 <div><div class=cap>Turnīrs</div><button class=big onclick="go('tcreate')"><span class=ic>⧉</span><b>Izveidot turnīru</b><br><small>Spēlētāji, galdi un kārtas</small></button></div>
 </div>
 ${tlist()}`:'<div class="card mu" style="margin-top:18px"><small>Turnīra režīms ir pieejams, kad lapa ir palaista uz sava servera (Render vai dators).</small></div>'}
-<div class=ver onclick="adminOpen()" style="cursor:pointer;padding:8px">Versija ${VERSION}</div>`}
+<div class=ver onclick="adminOpen()" style="cursor:pointer;padding:8px">Versija ${VERSION}</div>
+<button type=button class=info-fab onclick="infoOpen=true;render()">Info</button>
+${infoOpen?`<div class=info-draw onclick="if(event.target===this){infoOpen=false;render()}"><div class=info-panel onclick="event.stopPropagation()">
+<div class=bar style="margin-bottom:8px"><b>Info</b><button style="min-height:0;padding:4px 12px" onclick="infoOpen=false;render()">Aizvērt</button></div>
+<p class=mu style="margin:0 0 12px">Ieteikumi, palīdzība un pretenzijas</p>
+<div class=card style="margin:0">
+<div class=lbl>E-pasts</div>
+<p style="margin:4px 0 12px"><a href="mailto:haris.bertins@gmail.com" style="color:var(--gd)">haris.bertins@gmail.com</a></p>
+<div class=lbl>Telefons</div>
+<p style="margin:4px 0"><a href="tel:27453300" style="color:var(--gd)">27453300</a></p>
+</div>
+</div></div>`:''}`}
 // ---- admin ----
 function adminOpen(){if(!SRV)return;adm={};go('admin')}
 function adminV(){return hdr('Admin')+(adm.list?`<small class=mu>Aktīvie turnīri (${adm.list.length}). „Ieiet” atver turnīru ar pilnām rīkotāja tiesībām.</small>`+(adm.list.length?adm.list.map(t=>`<div class=card><b>${esc(t.name)}</b><br><small class=mu>${t.players} spēlētāji · ${t.round}. kārta · ${t.hands} partijas</small><br><button class=pri style="margin-top:8px" onclick="adminEnter('${t.tid}')">Ieiet kā rīkotājs</button></div>`).join(''):'<div class="card mu">Nav aktīvu turnīru.</div>')+`<button onclick="adminLogin(1)">Atjaunot sarakstu</button>`:`<div class=card><div class=lbl>Admin parole</div><input id=ap type=password placeholder="Parole" autocomplete="off"><button class=pri onclick="adminLogin()" style="width:100%;margin-top:8px">Ieiet</button></div>`)}
@@ -508,7 +519,7 @@ return `<div class="card sbanner" style="border:2px solid #c62828!important;box-
 function skipStart(){ls.set(sbKey(),1);render()}
 function syncDl(){if(!cfg||tbl==null||!H||!cfg.tables[tbl])return;const pl=H.pl.slice(),dn=H.pl[H.dealer];
 cfg.tables[tbl]={...cfg.tables[tbl],players:pl,dl:dn};drawnDl[sbKey()]=dn;
-api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl,dealer:dn}).catch(()=>{})}
+api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl,dealer:dn}).catch(e=>console.warn('syncDl',e))}
 function drawDl(){if(!H||drawing||!cfg||ordEd)return;const n=H.pl.length,key=sbKey();
 const T0=cfg.tables[tbl];if(T0&&T0.dl&&T0.players&&T0.players.includes(T0.dl)){const i=H.pl.indexOf(T0.dl);if(i>=0){H.dealer=i;drawnDl[key]=T0.dl;render();return}}
 ordEd=false;dlPick=false;drawing=true;render();
@@ -603,7 +614,7 @@ if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);if(!rs.length){try{cons
 else if(H.n!==rs.length){H.n=rs.length;H.dealer=dlFor(pl,rs);if(pl.length>3&&H.main===pl[H.dealer])H.main=null}
 H.rs=rs}
 let ordEd=false,dlPick=false;
-function togOrd(){const was=ordEd;ordEd=!ordEd;dlPick=false;if(was&&!ordEd){try{ls.set(sbKey(),1)}catch(e){}}render()}
+function togOrd(){const was=ordEd;ordEd=!ordEd;dlPick=false;if(was&&!ordEd){try{ls.set(sbKey(),1)}catch(e){}syncDl()}render()}
 function togDlPick(){dlPick=!dlPick;render()}
 const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`;
 function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;syncDl();render()}
