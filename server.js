@@ -2,11 +2,11 @@
 // Atjauninājumi uz ierīcēm tiek sūtīti kā mazi "izmaiņu" ziņojumi (nevis viss turnīrs katru reizi).
 const http=require('http'),fs=require('fs'),path=require('path'),os=require('os'),crypto=require('crypto'),zlib=require('zlib');
 const PORT=process.env.PORT||3000,F=process.env.DATA_FILE||path.join(__dirname,'data.json');
-let st={ts:{}};
-try{const x=JSON.parse(fs.readFileSync(F,'utf8'));if(x&&x.ts)st=x}catch(e){}
+let st={ts:{},arch:[]};
+try{const x=JSON.parse(fs.readFileSync(F,'utf8'));if(x&&x.ts){st=x;if(!Array.isArray(st.arch))st.arch=[]}}catch(e){}
 const RU=process.env.UPSTASH_REDIS_REST_URL,RT=process.env.UPSTASH_REDIS_REST_TOKEN;
 const rcmd=c=>fetch(RU,{method:'POST',headers:{Authorization:'Bearer '+RT,'Content-Type':'application/json'},body:JSON.stringify(c)}).then(r=>r.json());
-async function loadRemote(){if(!RU)return;try{const r=await rcmd(['GET','zole2']);if(r.result){let s=r.result;if(typeof s==='string'&&s.startsWith('gz:'))s=zlib.gunzipSync(Buffer.from(s.slice(3),'base64')).toString();const x=JSON.parse(s);if(x&&x.ts)st=x}console.log('Loaded data from Upstash Redis')}catch(e){console.log('Redis load failed:',e.message)}}
+async function loadRemote(){if(!RU)return;try{const r=await rcmd(['GET','zole2']);if(r.result){let s=r.result;if(typeof s==='string'&&s.startsWith('gz:'))s=zlib.gunzipSync(Buffer.from(s.slice(3),'base64')).toString();const x=JSON.parse(s);if(x&&x.ts){st=x;if(!Array.isArray(st.arch))st.arch=[]}}console.log('Loaded data from Upstash Redis')}catch(e){console.log('Redis load failed:',e.message)}}
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex'),rid=n=>crypto.randomBytes(n).toString('hex');
 const ADMIN=process.env.ADMIN_PASSWORD||'',safeEq=(a,b)=>{const h=x=>crypto.createHash('sha256').update(x).digest();return crypto.timingSafeEqual(h(a),h(b))};
 const clients={},fails={},stat={start:Date.now(),sse:0,page:0,api:0};
@@ -47,10 +47,19 @@ const server=http.createServer((q,r)=>{
   }
   if(q.method==='GET'&&u==='/api/stats'){const mb=n=>Math.round(n/1048.576)/1000;return json(r,200,{uptimeMin:Math.round((Date.now()-stat.start)/6e4),memoryMB:Math.round(process.memoryUsage().rss/1048576),tournaments:Object.keys(st.ts).length,connections:Object.values(clients).reduce((a,x)=>a+x.size,0),sseMB:mb(stat.sse),pageMB:mb(stat.page),apiMB:mb(stat.api)})}
   if(q.method==='GET'&&u==='/api/list')return json(r,200,Object.entries(st.ts).map(([tid,t])=>({tid,name:t.cfg.name})));
+  if(q.method==='GET'&&u==='/api/archive')return json(r,200,(st.arch||[]).map(a=>({id:a.id,name:a.name,savedAt:a.savedAt,players:(a.cfg&&a.cfg.players)||[],rounds:a.rounds?a.rounds.length:0})).reverse());
+  if(q.method==='GET'&&u.startsWith('/api/archive/')){const id=u.slice(13);const a=(st.arch||[]).find(x=>x.id===id);return a?json(r,200,a):json(r,404)}
   if(q.method==='GET'){try{return page(q,r)}catch(e){console.log('Cannot serve index.html:',e.message);r.writeHead(500,{'Content-Type':'text/plain; charset=utf-8'});return r.end('index.html nav atrasts serverī. Pārbaudi, vai fails index.html ir GitHub repozitorija saknē blakus server.js.')}}
   let body='';q.on('data',c=>{body+=c;if(body.length>1e6)q.destroy()});
   q.on('end',()=>{try{
     const b=body?JSON.parse(body):{},tk=q.headers['x-token'],hk=q.headers['x-host'];
+    if(u.startsWith('/api/archive/')&&q.method==='DELETE'){
+      const id=u.slice(13),a=(st.arch||[]).find(x=>x.id===id);if(!a)return json(r,404);
+      let ok=false;
+      if(ADMIN&&b.password&&safeEq(b.password,ADMIN))ok=true;
+      if(a.hpw&&b.password&&sha(a.tid+':h:'+b.password)===a.hpw)ok=true;
+      if(!ok)return json(r,403);
+      st.arch=st.arch.filter(x=>x.id!==id);save();return json(r,200)}
     if(u==='/api/create'&&q.method==='POST'){
       const c=b.cfg;if(!c||!c.tables||!c.limit||!c.players||String(b.password||'').length<3||String(b.hostPassword||'').length<3||b.hostPassword===b.password)return json(r,400);
       const tid=rid(4),t={created:Date.now(),pw:sha(tid+':'+b.password),hpw:sha(tid+':h:'+b.hostPassword),tok:rid(16),hk:rid(16),cfg:{...c,tid},rounds:[]};
@@ -74,11 +83,12 @@ const server=http.createServer((q,r)=>{
       if(t.hpw&&sha(b.tid+':h:'+b.password)===t.hpw)return json(r,200,{token:t.tok,host:t.hk});
       f.n++;return json(r,403);
     }
-    const m=u.match(/^\/api\/t\/([0-9a-f]+)(?:\/(cfg|round|order))?(?:\/([^/]+))?$/);
+    const m=u.match(/^\/api\/t\/([0-9a-f]+)(?:\/(cfg|round|order|archive))?(?:\/([^/]+))?$/);
     const t=m&&st.ts[m[1]];if(!t)return json(r,404);
     if(tk!==t.tok)return json(r,403);
     const tid=m[1],a=m[2];
     if(!a&&q.method==='DELETE'){if(hk!==t.hk)return json(r,403);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200)}
+    if(a==='archive'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const id=rid(8);const snap={id,tid,name:(t.cfg&&t.cfg.name)||'Turnīrs',savedAt:Date.now(),cfg:t.cfg,rounds:t.rounds||[],hpw:t.hpw||null};st.arch=st.arch||[];st.arch.push(snap);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200,{id})}
     if(a==='cfg'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);if(!b.tables||!b.limit)return json(r,400);t.cfg={...b,tid};send(tid,{type:'cfg',cfg:t.cfg});save();return json(r,200)}
     if(a==='round'&&m[3]&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const x=t.rounds.find(y=>y.id===m[3]);if(!x||!b.d||typeof b.d!=='object')return json(r,400);const d={};for(const p in x.d){const n=Number(b.d[p]);if(b.d[p]===null||b.d[p]===''||!isFinite(n))return json(r,400);d[p]=n}x.d=d;x.ed=Date.now();send(tid,{type:'upd',round:x});save();return json(r,200)}
     if(a==='round'&&q.method==='POST'){if(!b.d)return json(r,400);b.id=rid(6);b.tid=tid;t.rounds.push(b);send(tid,{type:'add',round:b});save();return json(r,200)}
