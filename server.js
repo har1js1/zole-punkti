@@ -114,7 +114,7 @@ const server=http.createServer((q,r)=>{
     if(a==='round'&&q.method==='DELETE'){t.rounds=t.rounds.filter(x=>x.id!==m[3]);send(tid,{type:'del',id:m[3]});save();return json(r,200)}
     if(a==='order'&&q.method==='POST'){
       const T=t.cfg.tables[b.table];if(!T||!Array.isArray(b.players)||b.players.slice().sort().join('|')!==T.players.slice().sort().join('|'))return json(r,400);
-      T.players=b.players;send(tid,{type:'cfg',cfg:t.cfg});save();return json(r,200)}
+      T.players=b.players;if(b.dealer&&T.players.includes(b.dealer))T.dl=b.dealer;send(tid,{type:'cfg',cfg:t.cfg});save();return json(r,200)}
     json(r,404);
   }catch(e){json(r,400)}});
 });

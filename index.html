@@ -62,7 +62,7 @@ button.on,button.pri{background:linear-gradient(180deg,#5bb690,#3f8a6b);border-c
 button.big{border-radius:18px;padding:18px 20px;background:linear-gradient(180deg,#143139,#102a31);box-shadow:0 1px 4px rgba(0,0,0,.18);font-size:18px}
 button.big.pri{background:linear-gradient(180deg,#5bb690,#3f8a6b)}
 button.big small{font-size:13px;font-weight:400;opacity:.85}.big .ic{display:inline-block;width:1.7em;font-size:1.15em;text-align:center;color:var(--gd)}.big.pri .ic{color:#06140f}
-button.big small.pln{display:block;margin-top:4px;font-size:19px;line-height:1.3;color:var(--fg);opacity:1;font-weight:500}
+button.big small.pln{display:block;margin-top:4px;font-size:19px;line-height:1.3;color:var(--mu);opacity:1;font-weight:500}
 html,body{overflow-anchor:none}
 .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 8px}
 .home-grid .cap{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin:0 0 8px 4px}
@@ -127,19 +127,20 @@ const tRounds=()=>cfg?rounds.filter(r=>r.tid===cfg.tid):[];
 const hands=i=>tRounds().filter(r=>r.table===i&&r.rd===cfg.round);
 function totals(rs){const t={};rs.forEach(r=>{for(const p in r.d)t[p]=(t[p]||0)+r.d[p]});return t}
 const pad=n=>String(n).padStart(2,'0');
-const tmS=()=>cfg.tm||{run:true,left:(limT()||cfg.limit.v||0)*60000,at:cfg.start,go:true};
+const tmFullMs=()=>((limT()||cfg.limit.v||0)*60000)||1;
+const tmS=()=>{const L=tmFullMs();const t=cfg.tm||{run:true,left:L,at:cfg.start,go:true,full:L};if(t.full==null||!(t.full>0))t.full=L;return t};
 const msLeft=()=>{const s=tmS();return Math.max(0,s.run?s.left-(Date.now()-s.at):s.left)};
-const tmIdle=()=>({run:false,left:(limT()||cfg.limit.v||0)*60000,at:0,go:false});
+const tmIdle=()=>{const L=tmFullMs();return {run:false,left:L,at:0,go:false,full:L}};
 const fmtMs=ms=>Math.floor(ms/60000)+':'+pad(Math.floor(ms/1000)%60);
 const isH=()=>!!(myT[cur]&&myT[cur].host);
 const tmLbl=()=>{const s=tmS();return s.run?'':(s.go?'⏸ Pauze':'Laiks vēl nav sākts')};
 function pieD(f,r,c){if(f<=0.0005)return '';if(f>=0.9995)return `M${c-r} ${c}A${r} ${r} 0 1 1 ${c+r} ${c}A${r} ${r} 0 1 1 ${c-r} ${c}Z`;
 const a=-Math.PI/2+f*2*Math.PI;return `M${c} ${c}L${c} ${c-r}A${r} ${r} 0 ${f>0.5?1:0} 1 ${c+r*Math.cos(a)} ${c+r*Math.sin(a)}Z`}
-function pie(sz){const r=sz/2-3,c=sz/2,f=Math.min(1,msLeft()/(((limT()||cfg.limit.v||0)*60000)||1));
-return `<svg class=pie width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" data-r="${r}" data-c="${c}" style="flex:none"><circle cx=${c} cy=${c} r=${r} fill="none" stroke="currentColor" stroke-opacity=".28" stroke-width="2"/><path class=pm fill="currentColor" d="${pieD(f,r,c)}"/></svg>`}
+function pie(sz){const r=sz/2-3,c=sz/2,full=(tmS().full||tmFullMs())||1,f=Math.min(1,msLeft()/full);
+return `<svg class=pie width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" data-r="${r}" data-c="${c}" data-full="${full}" style="flex:none"><circle cx=${c} cy=${c} r=${r} fill="none" stroke="currentColor" stroke-opacity=".28" stroke-width="2"/><path class=pm fill="currentColor" d="${pieD(f,r,c)}"/></svg>`}
 function tick(){if(!cfg||!cfg.limit)return;
 document.querySelectorAll('.tm').forEach(e=>{if((cfg.limit.k!=='t'&&cfg.limit.k!=='ht'))return;const ms=msLeft(),big=e.parentNode&&e.parentNode.className==='bigtm';e.textContent=ms?Math.floor(ms/60000)+':'+pad(Math.floor(ms/1000)%60):'0:00';e.style.color=ms<60000?'var(--neg)':''});
-if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const ms=msLeft(),tot=((limT()||cfg.limit.v||0)*60000)||1,f=Math.min(1,ms/tot);document.querySelectorAll('svg.pie').forEach(v=>{const p=v.querySelector('.pm');if(p)p.setAttribute('d',pieD(f,+v.dataset.r,+v.dataset.c));v.style.color=ms<60000?'var(--neg)':''})}
+if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const ms=msLeft();document.querySelectorAll('svg.pie').forEach(v=>{const tot=+(v.dataset.full)||(tmS().full)||tmFullMs()||1,f=Math.min(1,ms/tot);const p=v.querySelector('.pm');if(p)p.setAttribute('d',pieD(f,+v.dataset.r,+v.dataset.c));v.style.color=ms<60000?'var(--neg)':''})}
 if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const e=msLeft()===0;if(wasEnd!==null&&e!==wasEnd){wasEnd=e;if(['table','tv','host'].includes(view))render()}else wasEnd=e}}
 const limH=()=>{const L=cfg&&cfg.limit||{};return (L.k==='h'||L.k==='ht')?(L.h||L.v||0):0};
 const limT=()=>{const L=cfg&&cfg.limit||{};return (L.k==='t'||L.k==='ht')?(L.t||L.v||0):0};
@@ -224,7 +225,7 @@ const rules=readRules();if(!rules)return;
 const lp=[0,1,2,3].map(i=>parseFloat(String($('#lq'+i).value).replace(',','.')));if(lp.some(x=>!isFinite(x)))return alert('Ievadi lielos punktus visām 4 vietām (skaitļus).');
 const useH=$('#lkH')&&$('#lkH').checked,useT=$('#lkT')&&$('#lkT').checked;const hv=Math.max(1,parseInt($('#lv')&&$('#lv').value)||24),tv=Math.max(1,parseInt($('#lt')&&$('#lt').value)||60);const lk=!useH&&!useT?'n':useH&&useT?'ht':useH?'h':'t';
 const c={name:$('#tn').value.trim()||'Zoles turnīrs',players:pl,limit:{k:lk,v:lk==='t'?tv:lk==='n'?0:hv,h:useH?hv:0,t:useT?tv:0},rules,round:1,total:$('#tnl').checked?0:Math.max(1,parseInt($('#tr').value)||7),start:Date.now(),lp,tables:seat(shuffle(pl))};
-if(useT)c.tm={run:false,left:tv*60000,at:0,go:false};
+if(useT)c.tm={run:false,left:tv*60000,at:0,go:false,full:tv*60000};
 fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cfg:c,password:pw,hostPassword:hp})}).then(r=>r.ok?r.json():Promise.reject(new Error('servera kļūda '+r.status))).then(d=>{myT[d.tid]={token:d.token,host:d.host,name:c.name};ls.set('myT',myT);enterT(d.tid)}).catch(e=>alert('Neizdevās: '+e.message))}
 // ---- pievienoties ----
 function tlist(){return list.length?`<div class=lbl>Aktīvie turnīri</div>`+list.map(t=>myT[t.tid]?`<button class=big onclick="enterT('${t.tid}')"><span class="home-act"><span class=ic>📅</span><span class=nm>${esc(t.name)}</span><span class=home-badge>✓ pievienots</span></span></button>`:jsel===t.tid?`<div class=card><b>${esc(t.name)}</b><input id=jp type=password placeholder="Parole (spēlētāja vai rīkotāja)" autocomplete="off"><button class=pri onclick="doJoin('${t.tid}')">Pievienoties</button><button onclick="jsel=null;render()">Atcelt</button></div>`:`<button class=big onclick="jsel='${t.tid}';render()"><span class="home-act"><span class=ic>📅</span><span class=nm>${esc(t.name)}</span><small>Spied, lai ievadītu paroli</small></span></button>`).join(''):''}
@@ -342,7 +343,7 @@ function tmStart(){if(msLeft()<=0)return alert('Laiks ir beidzies. Atiestati vai
 function tmPause(){tmSet({run:false,left:msLeft(),go:true})}
 function tmReset(){if(!confirm('Atiestatīt laiku uz '+(limT()||cfg.limit.v)+' min un apturēt?'))return;tmv=null;tmSet({...tmIdle()})}
 function parseTm(v){v=String(v||'').trim().replace(',','.');let m=v.match(/^(\d+):(\d{1,2})$/);if(m)return(+m[1]*60+ +m[2])*1000;if(/^\d+(\.\d+)?$/.test(v))return Math.round(parseFloat(v)*60000);return null}
-function tmEdit(){const el=document.querySelector('.ti'),ms=parseTm(el?el.value:tmv);if(ms==null)return alert('Ievadi laiku formātā mm:ss vai minūtēs (piem. 12:30 vai 15).');tmv=null;const s=tmS();tmSet({left:ms,at:Date.now(),go:s.go||s.run})}
+function tmEdit(){const el=document.querySelector('.ti'),ms=parseTm(el?el.value:tmv);if(ms==null)return alert('Ievadi laiku formātā mm:ss vai minūtēs (piem. 12:30 vai 15).');tmv=null;const s=tmS();tmSet({left:ms,at:Date.now(),go:s.go||s.run,full:ms})}
 function tmOpen(){if(!isH()||!cfg||(cfg.limit.k!=='t'&&cfg.limit.k!=='ht'))return;tmOpenF=true;tmv=null;render()}
 function tmClose(){tmOpenF=false;tmv=null;render()}
 function tmCtl(){const s=tmS(),ms=msLeft(),act=s.run&&ms>0;
@@ -480,7 +481,7 @@ function tableV(){if(!cfg)return hdr('Galds')+'<div class=card>Ielādē…</div>
 if(tbl==null||!cfg.tables[tbl])return hdr('Izvēlies savu galdu')+cfg.tables.map((t,i)=>`<button class=big onclick="pick(${i})"><b>${esc(t.n)}</b><br><small class=pln>${t.players.map(esc).join(', ')}</small></button>`).join('');
 const T=cfg.tables[tbl],rs=hands(tbl).sort((a,b)=>a.t-b.t),dn=cfg.tables.filter((_,i)=>done(i)).length;
 initH(T.players,rs);
-if(!rs.length&&!ls.get(sbKey(),0)&&!drawnDl[sbKey()]&&!drawing&&T.players.length){const k=sbKey();if(!drawSched[k]){drawSched[k]=1;setTimeout(()=>{if(view==='table'&&tbl!=null&&!drawnDl[k]&&!drawing&&!ordEd)drawDl()},120)}}
+if(!rs.length&&!T.dl&&!ls.get(sbKey(),0)&&!drawnDl[sbKey()]&&!drawing&&T.players.length){const k=sbKey();if(!drawSched[k]){drawSched[k]=1;setTimeout(()=>{if(view==='table'&&tbl!=null&&!(cfg.tables[tbl]&&cfg.tables[tbl].dl)&&!drawnDl[k]&&!drawing&&!ordEd)drawDl()},120)}}
 return `<div class=bar><button onclick="go('tmenu')">←</button><b>${esc(T.n)} · ${cfg.round}. kārta</b><button onclick="pick(null)">Mainīt galdu</button></div>
 ${startBanner(T,rs)}${ordBtn()}${bnr()}${board(T.players,rs,'ordT')}${tform(T,rs)}${hist(rs,'undoT()')}`}
 const endAt=()=>{const s=tmS();return s.run?s.at+s.left:Infinity};
@@ -505,10 +506,15 @@ return `<div class="card sbanner" style="border:2px solid #c62828!important;box-
 <p style="margin:6px 0">Ja vajag, nomaini spēlētāju secību</p>
 <button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">↕ ${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`}
 function skipStart(){ls.set(sbKey(),1);render()}
-function drawDl(){if(!H||drawing||!cfg||ordEd)return;const n=H.pl.length,key=sbKey();ordEd=false;dlPick=false;drawing=true;render();
+function syncDl(){if(!cfg||tbl==null||!H||!cfg.tables[tbl])return;const pl=H.pl.slice(),dn=H.pl[H.dealer];
+cfg.tables[tbl]={...cfg.tables[tbl],players:pl,dl:dn};drawnDl[sbKey()]=dn;
+api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl,dealer:dn}).catch(()=>{})}
+function drawDl(){if(!H||drawing||!cfg||ordEd)return;const n=H.pl.length,key=sbKey();
+const T0=cfg.tables[tbl];if(T0&&T0.dl&&T0.players&&T0.players.includes(T0.dl)){const i=H.pl.indexOf(T0.dl);if(i>=0){H.dealer=i;drawnDl[key]=T0.dl;render();return}}
+ordEd=false;dlPick=false;drawing=true;render();
 const k0=Math.max(0,H.dealer),fin=Math.floor(Math.random()*n),T=n*3+((fin-k0+n)%n);let i=0;
 const step=()=>{i++;document.querySelectorAll('.sb>div').forEach((e,j)=>e.classList.toggle('dl',j===(k0+i)%n));
-if(i<T)setTimeout(step,70+i*9);else{drawing=false;if(H&&H.pl.length===n){H.dealer=fin;drawnDl[key]=H.pl[fin];if(n>3&&H.main===H.pl[fin])H.main=null}render()}};
+if(i<T)setTimeout(step,70+i*9);else{drawing=false;if(H&&H.pl.length===n){H.dealer=fin;drawnDl[key]=H.pl[fin];if(n>3&&H.main===H.pl[fin])H.main=null;syncDl()}render()}};
 setTimeout(step,200)}
 // ---- spēle ar draugiem ----
 function svSolo(){solos[sc]=solo;ls.set('solos',solos)}
@@ -586,21 +592,21 @@ function ordS(ix){const old=solo.players,pl=ix.map(i=>old[i]),dn=H&&H.pl?H.pl[H.
 function ordT(ix){const old=cfg.tables[tbl].players,pl=ix.map(i=>old[i]),dn=H&&H.pl?H.pl[H.dealer]:null;
 cfg.tables[tbl].players=pl;if(H){H.pl=pl;if(dn){const ni=pl.indexOf(dn);if(ni>=0)H.dealer=ni}}
 const key=sbKey();if(dn&&drawnDl[key])drawnDl[key]=dn;
-api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl}).catch(e=>alert('Neizdevās: '+e.message))}
+const dn2=H&&H.pl?H.pl[H.dealer]:null;if(dn2&&cfg.tables[tbl])cfg.tables[tbl].dl=dn2;api('/api/t/'+cur+'/order','POST',{table:tbl,players:pl,dealer:dn2||undefined}).catch(e=>alert('Neizdevās: '+e.message))}
 // ---- partijas ievade ----
 let saver=null;
 function autoDl(pl,rs){for(let k=rs.length-1;k>=0;k--){if(rs[k].dl){const i=pl.indexOf(rs[k].dl);if(i>=0)return (i+1)%pl.length}}return 0}
 let pendDl=null;
 function dlFor(pl,rs){let d=autoDl(pl,rs);if(pendDl&&rs.length===pendDl.n){const i=pl.indexOf(pendDl.p);if(i>=0)d=i;pendDl=null}return d}
 function initH(pl,rs){rs=rs||[];
-if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);if(!rs.length){try{const dn=drawnDl[sbKey()];if(dn){const i=pl.indexOf(dn);if(i>=0)d=i}}catch(e){}}H={pl,dealer:d,n:rs.length,chg:false,main:null,g:null,o:null,c:{}}}
+if(!H||H.pl.join('|')!==pl.join('|')){let d=dlFor(pl,rs);if(!rs.length){try{const T0=cfg&&cfg.tables&&tbl!=null?cfg.tables[tbl]:null;const dn=(T0&&T0.dl)||drawnDl[sbKey()];if(dn){const i=pl.indexOf(dn);if(i>=0)d=i}}catch(e){}}H={pl,dealer:d,n:rs.length,chg:false,main:null,g:null,o:null,c:{}}}
 else if(H.n!==rs.length){H.n=rs.length;H.dealer=dlFor(pl,rs);if(pl.length>3&&H.main===pl[H.dealer])H.main=null}
 H.rs=rs}
 let ordEd=false,dlPick=false;
 function togOrd(){const was=ordEd;ordEd=!ordEd;dlPick=false;if(was&&!ordEd){try{ls.set(sbKey(),1)}catch(e){}}render()}
 function togDlPick(){dlPick=!dlPick;render()}
 const ordBtn=()=>`<div style="text-align:right">${ordEd?`<button class="${dlPick?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togDlPick()">🃏 Izvēlēties dalītāju</button>`:''}<button class="${ordEd?'on':''}" style="min-height:0;padding:5px 10px;font-size:13px" onclick="togOrd()">${ordEd?'Gatavs':'Mainīt secību/dalītāju'}</button></div>`;
-function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;render()}
+function setDl(i){if(!H||!dlPick)return;H.dealer=i;dlPick=false;if(H.pl.length>3&&H.main===H.pl[i])H.main=null;syncDl();render()}
 function hand(pl,sv,rs){saver=sv;initH(pl,rs);
 const P=pl.length>3?pl.filter((_,i)=>i!==H.dealer):pl,d=deltas();
 const B=(on,k,v,l)=>`<button class="${on?'on':''}" onclick="hs('${k}',${v})">${esc(l)}</button>`;
