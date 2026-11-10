@@ -60,6 +60,25 @@ const server=http.createServer((q,r)=>{
       if(a.hpw&&b.password&&sha(a.tid+':h:'+b.password)===a.hpw)ok=true;
       if(!ok)return json(r,403);
       st.arch=st.arch.filter(x=>x.id!==id);save();return json(r,200)}
+    if(q.method==='POST'&&/^\/api\/archive\/[0-9a-f]+\/claim$/.test(u)){
+      const id=u.split('/')[3],a=(st.arch||[]).find(x=>x.id===id);if(!a)return json(r,404);
+      let ok=false;
+      if(ADMIN&&b.password&&safeEq(b.password,ADMIN))ok=true;
+      if(a.hpw&&b.password&&sha(a.tid+':h:'+b.password)===a.hpw)ok=true;
+      if(!ok)return json(r,403);
+      return json(r,200,{tid:a.tid,id:a.id})}
+    if(q.method==='POST'&&/^\/api\/archive\/[0-9a-f]+\/restore$/.test(u)){
+      const id=u.split('/')[3],a=(st.arch||[]).find(x=>x.id===id);if(!a)return json(r,404);
+      let ok=false;
+      if(ADMIN&&b.password&&safeEq(b.password,ADMIN))ok=true;
+      if(a.hpw&&b.password&&sha(a.tid+':h:'+b.password)===a.hpw)ok=true;
+      if(!ok)return json(r,403);
+      if(st.ts[a.tid])return json(r,409,{error:'active'});
+      const tok=rid(16),hk=rid(16);
+      const cfg=a.cfg||{};cfg.tid=a.tid;
+      st.ts[a.tid]={created:a.savedAt||Date.now(),pw:a.pw||sha(a.tid+':restored'),hpw:a.hpw||null,tok,hk,cfg,rounds:a.rounds||[]};
+      st.arch=st.arch.filter(x=>x.id!==id);save();
+      return json(r,200,{tid:a.tid,token:tok,host:hk,name:(cfg&&cfg.name)||a.name||'Turnīrs'})}
     if(u==='/api/create'&&q.method==='POST'){
       const c=b.cfg;if(!c||!c.tables||!c.limit||!c.players||String(b.password||'').length<3||String(b.hostPassword||'').length<3||b.hostPassword===b.password)return json(r,400);
       const tid=rid(4),t={created:Date.now(),pw:sha(tid+':'+b.password),hpw:sha(tid+':h:'+b.hostPassword),tok:rid(16),hk:rid(16),cfg:{...c,tid},rounds:[]};
@@ -88,7 +107,7 @@ const server=http.createServer((q,r)=>{
     if(tk!==t.tok)return json(r,403);
     const tid=m[1],a=m[2];
     if(!a&&q.method==='DELETE'){if(hk!==t.hk)return json(r,403);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200)}
-    if(a==='archive'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const id=rid(8);const snap={id,tid,name:(t.cfg&&t.cfg.name)||'Turnīrs',savedAt:Date.now(),cfg:t.cfg,rounds:t.rounds||[],hpw:t.hpw||null};st.arch=st.arch||[];st.arch.push(snap);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200,{id})}
+    if(a==='archive'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const id=rid(8);const snap={id,tid,name:(t.cfg&&t.cfg.name)||'Turnīrs',savedAt:Date.now(),cfg:t.cfg,rounds:t.rounds||[],hpw:t.hpw||null,pw:t.pw||null};st.arch=st.arch||[];st.arch.push(snap);delete st.ts[tid];send(tid,{type:'gone'});save();return json(r,200,{id})}
     if(a==='cfg'&&q.method==='POST'){if(hk!==t.hk)return json(r,403);if(!b.tables||!b.limit)return json(r,400);t.cfg={...b,tid};send(tid,{type:'cfg',cfg:t.cfg});save();return json(r,200)}
     if(a==='round'&&m[3]&&q.method==='POST'){if(hk!==t.hk)return json(r,403);const x=t.rounds.find(y=>y.id===m[3]);if(!x||!b.d||typeof b.d!=='object')return json(r,400);const d={};for(const p in x.d){const n=Number(b.d[p]);if(b.d[p]===null||b.d[p]===''||!isFinite(n))return json(r,400);d[p]=n}x.d=d;x.ed=Date.now();send(tid,{type:'upd',round:x});save();return json(r,200)}
     if(a==='round'&&q.method==='POST'){if(!b.d)return json(r,400);b.id=rid(6);b.tid=tid;t.rounds.push(b);send(tid,{type:'add',round:b});save();return json(r,200)}
