@@ -66,8 +66,9 @@ button.big small.pln{display:block;margin-top:4px;font-size:19px;line-height:1.3
 html,body{overflow-anchor:none}
 .home-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 8px}
 .home-grid .cap{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin:0 0 8px 4px}
-.home-grid .big{margin:0;min-height:108px;display:flex;flex-direction:column;justify-content:center}
-.home-grid .big .ic{display:block;margin:0 0 6px;font-size:1.35em;line-height:1}
+.home-grid .big{margin:0;min-height:96px;text-align:left}
+.home-grid .big .ic{display:inline-block;margin:0 8px 0 0;font-size:1.25em;line-height:1.2;vertical-align:middle}
+.home-grid .big b{vertical-align:middle}
 .home-act{display:flex;align-items:center;gap:12px;width:100%;text-align:left}
 .home-act .ic{flex-shrink:0;font-size:1.2em}
 .home-act .nm{flex:1;font-weight:600}
@@ -118,7 +119,9 @@ function closeT(){if(es){es.close();es=null}}
 function loadList(){fetch('/api/list').then(r=>{if(!r.ok||!/json/.test(r.headers.get('content-type')||''))throw 0;return r.json()}).then(l=>{SRV=true;list=l;if(view==='home'&&!jsel)render()}).catch(()=>{if(SRV){SRV=false;if(view==='home')render()}})}
 function enterT(t){cur=t;tbl=ls.get('tbl_'+t,null);openT();go('tmenu')}
 function go(v){if(!['tmenu','table','tv','host','stats','hist','histv','histmenu','histtv','histstats'].includes(v)){closeT();cur=null;cfg=null;rounds=[]}if(v!=='admin')adm={};view=v;H=null;pendDl=null;tmOpenF=false;tmv=null;ordEd=false;dlPick=false;if(v==='table'&&cfg&&tbl!=null&&typeof done==='function'&&done(tbl)){tbl=null;ls.set('tbl_'+cur,null)}if(v==='home'){jsel=null;loadList()}if(v==='hist'){archList=null;loadArch();if(!cur){cfg=null;rounds=[]}}render();scrollTo(0,0)}
-function render(){const f={home:homeV,solo:soloV,tv:tvV,table:tableV,host:hostV,tcreate:createV,tmenu:menuV,stats:statsV,admin:adminV,hist:histListV,histv:histViewV,histmenu:histMenuV,histtv:tvV,histstats:statsV}[view];$('#app').className=(view==='tv'||view==='histtv')?'w wide':'w';$('#app').innerHTML=f();tick()}
+function render(){const f={home:homeV,solo:soloV,tv:tvV,table:tableV,host:hostV,tcreate:createV,tmenu:menuV,stats:statsV,admin:adminV,hist:histListV,histv:histViewV,histmenu:histMenuV,histtv:tvV,histstats:statsV}[view];if(!f){view='home';return render()}
+try{const html=f();$('#app').className=(view==='tv'||view==='histtv')?'w wide':'w';$('#app').innerHTML=html}catch(err){console.error(err);$('#app').className='w';if(view==='tv'||view==='histtv'){view='tmenu';$('#app').innerHTML=menuV()+'<div class=card style="margin-top:8px"><small class=n>Tabulu neizdevās atvērt. Mēģini vēlreiz.</small></div>'}else{$('#app').innerHTML='<div class=card>Kļūda. <button onclick="go(\'home\')">Sākums</button></div>'}}
+tick()}
 const hdr=t=>{const back=['table','tv','host','stats'].includes(view)?'tmenu':['histtv','histstats'].includes(view)?'histmenu':(view==='histmenu'||view==='histv')?'hist':(view==='hist'?'home':'home');return `<div class=bar><button onclick="go('${back}')">←</button><b>${esc(t)}</b></div>`};
 const tRounds=()=>cfg?rounds.filter(r=>r.tid===cfg.tid):[];
 const hands=i=>tRounds().filter(r=>r.table===i&&r.rd===cfg.round);
@@ -136,7 +139,7 @@ function pie(sz){const r=sz/2-3,c=sz/2,f=Math.min(1,msLeft()/(((limT()||cfg.limi
 return `<svg class=pie width=${sz} height=${sz} viewBox="0 0 ${sz} ${sz}" data-r="${r}" data-c="${c}" style="flex:none"><circle cx=${c} cy=${c} r=${r} fill="none" stroke="currentColor" stroke-opacity=".28" stroke-width="2"/><path class=pm fill="currentColor" d="${pieD(f,r,c)}"/></svg>`}
 function tick(){if(!cfg||!cfg.limit)return;
 document.querySelectorAll('.tm').forEach(e=>{if((cfg.limit.k!=='t'&&cfg.limit.k!=='ht'))return;const ms=msLeft(),big=e.parentNode&&e.parentNode.className==='bigtm';e.textContent=ms?Math.floor(ms/60000)+':'+pad(Math.floor(ms/1000)%60):'0:00';e.style.color=ms<60000?'var(--neg)':''});
-if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const ms=msLeft(),f=Math.min(1,ms/((cfg.limit.v*60000)||1));document.querySelectorAll('svg.pie').forEach(v=>{const p=v.querySelector('.pm');if(p)p.setAttribute('d',pieD(f,+v.dataset.r,+v.dataset.c));v.style.color=ms<60000?'var(--neg)':''})}
+if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const ms=msLeft(),tot=((limT()||cfg.limit.v||0)*60000)||1,f=Math.min(1,ms/tot);document.querySelectorAll('svg.pie').forEach(v=>{const p=v.querySelector('.pm');if(p)p.setAttribute('d',pieD(f,+v.dataset.r,+v.dataset.c));v.style.color=ms<60000?'var(--neg)':''})}
 if((cfg.limit.k==='t'||cfg.limit.k==='ht')){const e=msLeft()===0;if(wasEnd!==null&&e!==wasEnd){wasEnd=e;if(['table','tv','host'].includes(view))render()}else wasEnd=e}}
 const limH=()=>{const L=cfg&&cfg.limit||{};return (L.k==='h'||L.k==='ht')?(L.h||L.v||0):0};
 const limT=()=>{const L=cfg&&cfg.limit||{};return (L.k==='t'||L.k==='ht')?(L.t||L.v||0):0};
@@ -450,8 +453,8 @@ tb.players.forEach(p=>{pl[p]=St.lp[p]-(St.per[R][p]||0)+(nl[p]||0);ps[p]=St.sm[p
 const rk=(P,S,p)=>1+L.filter(x=>cl(P[x.p])>cl(P[p])||(cl(P[x.p])===cl(P[p])&&cl(S[x.p])>cl(S[p]))).length;
 tb.players.forEach(p=>{const a=rk(pl,ps,p),b=rk(St.lp,St.sm,p);res[p]=a>b?1:a<b?-1:0})});
 return res}
-function tvV(){if(!cfg)return hdr('Pilnā tabula')+'<div class=card>Ielādē…</div>';
-const rd=tvSel==='t'?null:+tvSel,St=stand(),tb0=rd?tablesOf(rd):[],tabs=rd&&tb0.length?tb0:cfg.tables,avail=innerHeight-200;
+function tvV(){if(!cfg||!cfg.tables||!cfg.players)return hdr('Pilnā tabula')+'<div class=card>Ielādē…</div>';
+const rd=tvSel==='t'?null:+tvSel,St=stand(),tb0=rd?tablesOf(rd):[],tabs=(rd&&tb0.length?tb0:cfg.tables)||[],avail=Math.max(200,innerHeight-200);
 const outSet=new Set((!cfg.showOut&&(cfg.out||[]))||[]);
 const L=[];tabs.forEach((tb,i)=>tb.players.forEach(p=>{if(!outSet.has(p))L.push({p,i,lp:rd?(St.per[rd][p]||0):St.lp[p],sm:rd?(St.psm[rd][p]||0):St.sm[p]})}));
 if(!rd)cfg.players.forEach(p=>{if(!outSet.has(p)&&!L.some(x=>x.p===p))L.push({p,i:-1,lp:St.lp[p],sm:St.sm[p]})});
@@ -461,11 +464,11 @@ const chips=['t',...Array.from({length:cfg.round},(_,k)=>k+1)].map(x=>bt(String(
 const arw=a=>a===1?'<span class=up>▲</span>':a===-1?'<span class=dn>▼</span>':'';
 let body;
 if(tvMode==='a'){
-const n=L.length,cols=Math.min(4,Math.max(1,Math.ceil(n/12))),R=Math.ceil(n/cols),fs=Math.max(11,Math.min(avail/R*.46,innerWidth/cols*.06));
+const n=L.length,cols=Math.min(4,Math.max(1,Math.ceil(Math.max(n,1)/12))),R=Math.max(1,Math.ceil(n/cols)),fs=Math.max(11,Math.min(avail/R*.46,innerWidth/cols*.06));
 body=`<div style="flex:1;min-height:0;width:100%;max-width:${cols*760}px;margin:0 auto;display:grid;grid-auto-flow:column;grid-template-rows:repeat(${R},1fr);grid-template-columns:repeat(${cols},1fr);gap:6px 14px;font-size:${fs}px">${L.map(x=>`<div class="row ${rk(x)<=3?'g1 r'+rk(x):''} ${x.i<0?'out':''}"><span class=r>${rk(x)}.</span><span class=ar>${arw(ar[x.p])}</span><span class=p>${esc(x.p)} <small class=mu>${x.i<0?'izslēgts':esc(tabs[x.i].n)}</small></span><span class=s>${rn(x.lp)}</span><small class="sm ${x.sm<0?'n':''}">${fmt(x.sm)}</small></div>`).join('')}</div>`
 }else{
 const G=tabs.map((tb,i)=>({n:tb.n,i,pl:L.filter(x=>x.i===i)}));const out=L.filter(x=>x.i<0);if(out.length)G.push({n:'Izslēgti',i:-1,pl:out});
-const gn=G.length,gc=Math.min(gn,Math.max(1,Math.round(Math.sqrt(gn*innerWidth/avail)))),gr=Math.ceil(gn/gc),mx=Math.max(...G.map(g=>g.pl.length))+1,fs=Math.max(11,Math.min(avail/gr/(mx*1.8),innerWidth/gc*.06));
+const gn=G.length||1,gc=Math.min(gn,Math.max(1,Math.round(Math.sqrt(gn*innerWidth/avail)))),gr=Math.ceil(gn/gc),mx=Math.max(1,...G.map(g=>g.pl.length))+1,fs=Math.max(11,Math.min(avail/gr/(mx*1.8),innerWidth/gc*.06));
 body=`<div style="flex:1;min-height:0;width:100%;max-width:${gc*820}px;margin:0 auto;display:grid;grid-template-columns:repeat(${gc},1fr);grid-auto-rows:1fr;gap:10px;font-size:${fs}px">${G.map(g=>`<div class=card style="margin:0;padding:6px 14px;overflow:hidden"><b style="color:var(--gd)">${esc(g.n)}${g.i>=0&&!rd?' <small class=mu>'+prog(g.i)+'</small>':''}</b>${g.pl.map(x=>`<div class=g2><span><span class=ar>${arw(ar[x.p])}</span>${rk(x)}. ${esc(x.p)}</span><span><b style="color:var(--gd)">${rn(x.lp)}</b> <small class="${x.sm<0?'n':'mu'}">${fmt(x.sm)}</small></span></div>`).join('')}</div>`).join('')}</div>`}
 return `<div class=tv style="height:100vh;display:flex;flex-direction:column"><div class=bar><button onclick="go('${view==='histtv'?'histmenu':'tmenu'}')">←</button><b style="font-size:clamp(22px,3vw,44px);text-align:center">🃏 ${esc(cfg.name)}</b>${(cfg.limit.k==='t'||cfg.limit.k==='ht')?`<span class=chip style="display:inline-flex;align-items:center;gap:8px;${isH()?'cursor:pointer;':''}" ${isH()?'onclick="tmOpen()" title="Labot laiku"':''}>${pie(30)}<span class=tm></span>${tmS().run?'':'<span style="font-size:.8em">'+(tmS().go?'⏸':'▶')+'</span>'}</span>`:''}<button onclick="tfs()">⛶</button></div>
 <div style="margin:6px 0;text-align:center">${chips}</div>${body}
