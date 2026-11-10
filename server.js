@@ -6,19 +6,33 @@ let st={ts:{}};
 try{const x=JSON.parse(fs.readFileSync(F,'utf8'));if(x&&x.ts)st=x}catch(e){}
 const RU=process.env.UPSTASH_REDIS_REST_URL,RT=process.env.UPSTASH_REDIS_REST_TOKEN;
 const rcmd=c=>fetch(RU,{method:'POST',headers:{Authorization:'Bearer '+RT,'Content-Type':'application/json'},body:JSON.stringify(c)}).then(r=>r.json());
-async function loadRemote(){if(!RU)return;try{const r=await rcmd(['GET','zole2']);if(r.result){const x=JSON.parse(r.result);if(x&&x.ts)st=x}console.log('Loaded data from Upstash Redis')}catch(e){console.log('Redis load failed:',e.message)}}
+async function loadRemote(){if(!RU)return;try{const r=await rcmd(['GET','zole2']);if(r.result){let s=r.result;if(typeof s==='string'&&s.startsWith('gz:'))s=zlib.gunzipSync(Buffer.from(s.slice(3),'base64')).toString();const x=JSON.parse(s);if(x&&x.ts)st=x}console.log('Loaded data from Upstash Redis')}catch(e){console.log('Redis load failed:',e.message)}}
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex'),rid=n=>crypto.randomBytes(n).toString('hex');
 const ADMIN=process.env.ADMIN_PASSWORD||'',safeEq=(a,b)=>{const h=x=>crypto.createHash('sha256').update(x).digest();return crypto.timingSafeEqual(h(a),h(b))};
 const clients={},fails={},stat={start:Date.now(),sse:0,page:0,api:0};
-function send(tid,msg){const m='data: '+JSON.stringify(msg)+'\n\n',set=clients[tid]||[];stat.sse+=Buffer.byteLength(m)*(set.size||0);set.forEach(c=>c.write(m));if(msg.type==='gone'){set.forEach(c=>c.end());delete clients[tid]}}
-// Saglabāšana diskā/Upstash tiek apvienota (ne biežāk kā reizi ~1,5 s)
-let timer=null;
-function flush(){timer=null;try{fs.writeFileSync(F,JSON.stringify(st))}catch(e){}
-  return RU?rcmd(['SET','zole2',JSON.stringify(st)]).catch(e=>console.log('Redis save failed:',e.message)):Promise.resolve()}
-function save(){const old=Date.now()-10*864e5;Object.keys(st.ts).forEach(k=>{if(st.ts[k].created<old){delete st.ts[k];send(k,{type:'gone'})}});if(!timer)timer=setTimeout(flush,1500)}
-const quit=()=>{if(timer)clearTimeout(timer);const t=setTimeout(()=>process.exit(0),4000);flush().finally(()=>{clearTimeout(t);process.exit(0)})};
+const boot=rid(3),hub={};
+const hb=tid=>hub[tid]||(hub[tid]={seq:0,buf:[],snap:null});
+// Katrs ziņojums saņem id; pēc atkārtotas pieslēgšanās ierīce saņem tikai nokavētos ziņojumus (ne visu turnīru)
+function send(tid,msg){const h=hb(tid),set=clients[tid]||new Set();h.seq++;const m='id: '+boot+'-'+h.seq+'\ndata: '+JSON.stringify(msg)+'\n\n';
+  h.buf.push({s:h.seq,m});if(h.buf.length>300)h.buf.shift();h.snap=null;
+  stat.sse+=Buffer.byteLength(m)*set.size;set.forEach(c=>{if(c.writableLength>2097152)c.destroy();else c.write(m)});
+  if(msg.type==='gone'){set.forEach(c=>c.end());delete clients[tid];delete hub[tid]}}
+function hello(tid,t,q,r){const h=hb(tid),last=String(q.headers['last-event-id']||'').split('-'),n=last[0]===boot&&last[1]!==''?+last[1]:-1;
+  let out='retry: '+(2000+Math.floor(Math.random()*6000))+'\n\n';
+  if(n>=0&&n<=h.seq&&(n===h.seq||(h.buf.length&&h.buf[0].s<=n+1)))out+=h.buf.filter(x=>x.s>n).map(x=>x.m).join('');
+  else{if(!h.snap)h.snap='id: '+boot+'-'+h.seq+'\ndata: '+JSON.stringify({type:'full',cfg:t.cfg,rounds:t.rounds})+'\n\n';out+=h.snap}
+  stat.sse+=Buffer.byteLength(out);r.write(out)}
+// Saglabāšana: disks ~1,5 s (asinhroni, atomāri), Upstash ne biežāk kā reizi REDIS_SAVE_MS (noklusēti 15 s) un saspiests
+const REDIS_MS=+process.env.REDIS_SAVE_MS||15000;let wT=null,rT=null,rLast=0,sv=0,cache={v:-1,s:''},wBusy=false;
+const dump=()=>{if(cache.v!==sv)cache={v:sv,s:JSON.stringify(st)};return cache.s};
+function flushDisk(){wT=null;if(wBusy){wT=setTimeout(flushDisk,500);return}wBusy=true;const tmp=F+'.tmp';fs.writeFile(tmp,dump(),e=>{if(e){wBusy=false;return}fs.rename(tmp,F,()=>{wBusy=false})})}
+async function flushRedis(){rT=null;if(!RU)return;rLast=Date.now();try{const gz=await new Promise((ok,no)=>zlib.gzip(dump(),(e,b)=>e?no(e):ok(b)));await rcmd(['SET','zole2','gz:'+gz.toString('base64')])}catch(e){console.log('Redis save failed:',e.message)}}
+function save(){const old=Date.now()-10*864e5;Object.keys(st.ts).forEach(k=>{if(st.ts[k].created<old){delete st.ts[k];send(k,{type:'gone'})}});sv++;
+  if(!wT)wT=setTimeout(flushDisk,1500);if(RU&&!rT)rT=setTimeout(flushRedis,Math.max(1500,REDIS_MS-(Date.now()-rLast)))}
+const quit=()=>{[wT,rT].forEach(x=>x&&clearTimeout(x));const t=setTimeout(()=>process.exit(0),4000);try{fs.writeFileSync(F,dump())}catch(e){}flushRedis().finally(()=>{clearTimeout(t);process.exit(0)})};
 process.on('SIGTERM',quit);process.on('SIGINT',quit);
-setInterval(()=>Object.values(clients).forEach(s=>s.forEach(c=>c.write(': ping\n\n'))),25000);
+setInterval(()=>Object.values(clients).forEach(s=>s.forEach(c=>{if(c.writableLength>524288)c.destroy();else c.write(': ping\n\n')})),25000);
+setInterval(()=>{const o=Date.now()-6e5;for(const k in fails)if(fails[k].t<o)delete fails[k]},6e5);
 const json=(r,c,o)=>{const b=JSON.stringify(o||{});stat.api+=Buffer.byteLength(b);r.writeHead(c,{'Content-Type':'application/json'});r.end(b)};
 let idx={m:0,raw:null,gz:null};
 function page(q,r){const f=path.join(__dirname,'index.html'),m=fs.statSync(f).mtimeMs;if(idx.m!==m){idx.raw=fs.readFileSync(f);idx.gz=zlib.gzipSync(idx.raw);idx.m=m}
@@ -29,7 +43,7 @@ const server=http.createServer((q,r)=>{
     const tid=url.searchParams.get('t'),t=st.ts[tid];
     if(!t||url.searchParams.get('k')!==t.tok){r.writeHead(403);return r.end()}
     r.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache',Connection:'keep-alive','X-Accel-Buffering':'no'});
-    const f0='data: '+JSON.stringify({type:'full',cfg:t.cfg,rounds:t.rounds})+'\n\n';stat.sse+=Buffer.byteLength(f0);r.write(f0);(clients[tid]=clients[tid]||new Set()).add(r);q.on('close',()=>clients[tid]&&clients[tid].delete(r));return;
+    hello(tid,t,q,r);(clients[tid]=clients[tid]||new Set()).add(r);q.on('close',()=>clients[tid]&&clients[tid].delete(r));return;
   }
   if(q.method==='GET'&&u==='/api/stats'){const mb=n=>Math.round(n/1048.576)/1000;return json(r,200,{uptimeMin:Math.round((Date.now()-stat.start)/6e4),memoryMB:Math.round(process.memoryUsage().rss/1048576),tournaments:Object.keys(st.ts).length,connections:Object.values(clients).reduce((a,x)=>a+x.size,0),sseMB:mb(stat.sse),pageMB:mb(stat.page),apiMB:mb(stat.api)})}
   if(q.method==='GET'&&u==='/api/list')return json(r,200,Object.entries(st.ts).map(([tid,t])=>({tid,name:t.cfg.name})));
