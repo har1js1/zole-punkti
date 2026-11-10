@@ -64,12 +64,14 @@ button.big.pri{background:linear-gradient(180deg,#5bb690,#3f8a6b)}
 button.big small{font-size:13px;font-weight:400;opacity:.85}.big .ic{display:inline-block;width:1.7em;font-size:1.15em;text-align:center;color:var(--gd)}.big.pri .ic{color:#06140f}
 button.big small.pln{display:block;margin-top:4px;font-size:19px;line-height:1.3;color:var(--fg);opacity:1;font-weight:500}
 html,body{overflow-anchor:none}
-@media(min-width:720px){
-.home-split{display:flex;gap:16px;align-items:flex-start}
-.home-hist{flex:1;min-width:0}
-.home-main{flex:2;min-width:0}
-.home-hist .big{height:100%}
-}
+.home-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 8px}
+.home-grid .cap{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.07em;margin:0 0 8px 4px}
+.home-grid .big{margin:0;min-height:108px;display:flex;flex-direction:column;justify-content:center}
+.home-grid .big .ic{display:block;margin:0 0 6px;font-size:1.35em;line-height:1}
+.home-act{display:flex;align-items:center;gap:12px;width:100%;text-align:left}
+.home-act .ic{flex-shrink:0;font-size:1.2em}
+.home-act .nm{flex:1;font-weight:600}
+.home-badge{background:rgba(74,152,120,.22);color:#7dcea0;border-radius:99px;padding:5px 12px;font-size:12.5px;font-weight:600;white-space:nowrap}
 
 button.danger{background:linear-gradient(180deg,#cb4a3d,#a53329);border-color:#cb4a3d;color:#fff}
 input,textarea,select{border-radius:12px;background:#0b1f25}input:focus,textarea:focus,select:focus{outline:2px solid var(--ac);outline-offset:1px}
@@ -182,12 +184,13 @@ fetch('/api/archive/'+id,{method:'DELETE',headers:{'Content-Type':'application/j
 function restoreArch(id){if(!confirm('Atjaunot turnīru kā aktīvu? Tas atkal parādīsies turnīru sarakstā.'))return;
 const isAdm=adm&&adm.pw;const pw=isAdm?adm.pw:prompt('Rīkotāja parole:');if(!pw)return;
 fetch('/api/archive/'+id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})}).then(r=>r.ok?r.json():Promise.reject()).then(d=>{const ah=ls.get('archHost',{})||{};delete ah[id];ls.set('archHost',ah);myT[d.tid]={token:d.token,host:d.host,name:d.name};ls.set('myT',myT);archView=null;enterT(d.tid)}).catch(()=>alert('Neizdevās atjaunot (nepareiza parole vai turnīrs ar šo ID jau aktīvs)'))}
-function homeV(){return `<div class=hero><div class=suits>♠ ♥ ♣ ♦</div><h1>Zole</h1><p>Pieraksti zoles punktus digitāli</p></div>
+function homeV(){return `<div class=hero><div class=suits>♣ ♥ ♠ ♦</div><h1>Zole</h1><p>Pieraksti zoles punktus digitāli</p></div>
 <button class="big pri" onclick="go('solo')"><b class=ic>✎</b>Pierakstīt <br><small style="color:inherit">tikai šajā ierīcē, vairāki galdi</small></button>
-${SRV?`<div class=home-split>
-<div class=home-hist><div class=lbl>Vēsture</div><button class=big onclick="go('hist')">Turnīru vēsture <br><small>Beigtie un saglabātie turnīri</small></button></div>
-<div class=home-main><div class=lbl>Turnīrs</div><button class=big onclick="go('tcreate')">Izveidot turnīru <br><small>Spēlētāji, galdi un kārtas</small></button>${tlist()}</div>
-</div>`:'<div class="card mu" style="margin-top:18px"><small>Turnīra režīms ir pieejams, kad lapa ir palaista uz sava servera (Render vai dators).</small></div>'}
+${SRV?`<div class=home-grid>
+<div><div class=cap>Vēsture</div><button class=big onclick="go('hist')"><span class=ic>🕒</span><b>Turnīru vēsture</b><br><small>Beigtie un saglabātie</small></button></div>
+<div><div class=cap>Turnīrs</div><button class=big onclick="go('tcreate')"><span class=ic>⧉</span><b>Izveidot turnīru</b><br><small>Spēlētāji, galdi un kārtas</small></button></div>
+</div>
+${tlist()}`:'<div class="card mu" style="margin-top:18px"><small>Turnīra režīms ir pieejams, kad lapa ir palaista uz sava servera (Render vai dators).</small></div>'}
 <div class=ver onclick="adminOpen()" style="cursor:pointer;padding:8px">Versija ${VERSION}</div>`}
 // ---- admin ----
 function adminOpen(){if(!SRV)return;adm={};go('admin')}
@@ -221,7 +224,7 @@ const c={name:$('#tn').value.trim()||'Zoles turnīrs',players:pl,limit:{k:lk,v:l
 if(useT)c.tm={run:false,left:tv*60000,at:0,go:false};
 fetch('/api/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cfg:c,password:pw,hostPassword:hp})}).then(r=>r.ok?r.json():Promise.reject(new Error('servera kļūda '+r.status))).then(d=>{myT[d.tid]={token:d.token,host:d.host,name:c.name};ls.set('myT',myT);enterT(d.tid)}).catch(e=>alert('Neizdevās: '+e.message))}
 // ---- pievienoties ----
-function tlist(){return list.length?`<div class=lbl>Aktīvie turnīri</div>`+list.map(t=>myT[t.tid]?`<button class=big onclick="enterT('${t.tid}')"><b>${esc(t.name)}</b> <small>✓ pievienots</small></button>`:jsel===t.tid?`<div class=card><b>${esc(t.name)}</b><input id=jp type=password placeholder="Parole (spēlētāja vai rīkotāja)" autocomplete="off"><button class=pri onclick="doJoin('${t.tid}')">Pievienoties</button><button onclick="jsel=null;render()">Atcelt</button></div>`:`<button class=big onclick="jsel='${t.tid}';render()"><b>${esc(t.name)}</b><br><small>Spied, lai ievadītu paroli</small></button>`).join(''):''}
+function tlist(){return list.length?`<div class=lbl>Aktīvie turnīri</div>`+list.map(t=>myT[t.tid]?`<button class=big onclick="enterT('${t.tid}')"><span class="home-act"><span class=ic>📅</span><span class=nm>${esc(t.name)}</span><span class=home-badge>✓ pievienots</span></span></button>`:jsel===t.tid?`<div class=card><b>${esc(t.name)}</b><input id=jp type=password placeholder="Parole (spēlētāja vai rīkotāja)" autocomplete="off"><button class=pri onclick="doJoin('${t.tid}')">Pievienoties</button><button onclick="jsel=null;render()">Atcelt</button></div>`:`<button class=big onclick="jsel='${t.tid}';render()"><span class="home-act"><span class=ic>📅</span><span class=nm>${esc(t.name)}</span><small>Spied, lai ievadītu paroli</small></span></button>`).join(''):''}
 function doJoin(tid){const pw=$('#jp').value;
 fetch('/api/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tid,password:pw})}).then(r=>r.ok?r.json():Promise.reject(new Error(r.status===403?'Nepareiza parole':r.status===429?'Pārāk daudz mēģinājumu, pamēģini vēlāk':'servera kļūda '+r.status))).then(d=>{const t=list.find(x=>x.tid===tid);myT[tid]={token:d.token,host:d.host,name:t?t.name:''};ls.set('myT',myT);enterT(tid)}).catch(e=>alert(e.message))}
 // ---- turnīra izvēlne ----
