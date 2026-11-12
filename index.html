@@ -96,7 +96,7 @@ input,textarea,select{border-radius:12px;background:#0b1f25}input:focus,textarea
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ls={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const VERSION='4.6';
+const VERSION='5.4';
 const fmt=n=>(n>0?'+':'')+(Math.round(n*10)/10);
 // Punkti: [nosaukums, punkti spēlētājam]; pretinieki saņem pretējo zīmi (pusi vai visu).
 const BASE={"Lielais":[["Uzvara 61–90",2],["Uzvara 91+ (jaņi)",4],["Uzvara visi stiķi",6],["Zaudējums 31–60",-4],["Zaudējums ≤30",-6],["Zaudējums, nav stiķu",-8]],
@@ -160,6 +160,9 @@ $('#lp').innerHTML=!pl.length?'':l?`${pl.length} spēlētāji → ${l.length} ga
 // ---- sākums ----
 
 let archList=null,archView=null,infoOpen=false;
+function copyInfo(t){const done=()=>{try{alert('Nokopēts: '+t)}catch(e){}};
+if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done).catch(()=>{try{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();done()}catch(e){alert(t)}});
+else{try{const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove();done()}catch(e){alert(t)}}}
 function loadArch(){fetch('/api/archive').then(r=>r.json()).then(l=>{archList=l||[];render()}).catch(()=>{archList=[];render()})}
 function histListV(){return hdr('Turnīru vēsture')+(archList===null?'<div class=card>Ielādē…</div>':(archList.length?archList.map(a=>`<button class=big onclick="openArch('${a.id}')"><b>${esc(a.name)}</b><br><small>${a.players.length} spēlētāji · ${a.rounds} partijas · ${fmtT(a.savedAt)}</small></button>`).join(''):'<div class="card mu">Vēl nav saglabātu turnīru. Rīkotāja panelī spied „Beigt turnīru un saglabāt”.</div>'))}
 function openArch(id){fetch('/api/archive/'+id).then(r=>r.ok?r.json():Promise.reject()).then(a=>{archView=a;view='histmenu';render();scrollTo(0,0)}).catch(()=>alert('Neizdevās ielādēt'))}
@@ -205,9 +208,9 @@ ${infoOpen?`<div class=info-draw onclick="if(event.target===this){infoOpen=false
 <p class=mu style="margin:0 0 12px">Ieteikumi, palīdzība un pretenzijas</p>
 <div class=card style="margin:0">
 <div class=lbl>E-pasts</div>
-<p style="margin:4px 0 12px"><a href="mailto:haris.bertins@gmail.com" style="color:var(--gd)">haris.bertins@gmail.com</a></p>
+<button type=button onclick="copyInfo('haris.bertins@gmail.com')" style="width:100%;text-align:left;margin:4px 0 12px;color:var(--gd);border-color:var(--bd)">haris.bertins@gmail.com <small class=mu>· kopēt</small></button>
 <div class=lbl>Telefons</div>
-<p style="margin:4px 0"><a href="tel:27453300" style="color:var(--gd)">27453300</a></p>
+<button type=button onclick="copyInfo('27453300')" style="width:100%;text-align:left;margin:4px 0;color:var(--gd);border-color:var(--bd)">27453300 <small class=mu>· kopēt</small></button>
 </div>
 </div></div>`:''}`}
 // ---- admin ----
@@ -227,7 +230,7 @@ function createV(){return hdr('Izveidot turnīru')+`<div class=card>
 <label style="display:flex;align-items:center;gap:8px;margin:6px 0;cursor:pointer"><input id=lkT type=checkbox style="width:auto;margin:0" onchange="lkc()"> Laiks (minūtes)</label>
 <input id=lt type=number min=1 value=60 style="width:100%;margin-bottom:6px;display:none">
 <small class=mu>Var ieslēgt abas — kārta beidzas, kad sasniegts partiju limits vai beidzas laiks.</small>
-<div class=lbl>Kārtu skaits</div><div class=bar><input id=tr type=number min=1 value=7 style="flex:1"><label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input id=tnl type=checkbox style="width:auto;margin:0" onchange="lkc()"> bez limita</label></div>
+<div class=lbl>Kārtu skaits <span style="text-transform:none;letter-spacing:0;font-weight:400">(neaizmirsti iekļaut finālu)</span></div><div class=bar><input id=tr type=number min=1 value=7 style="flex:1"><label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input id=tnl type=checkbox style="width:auto;margin:0" onchange="lkc()"> bez limita</label></div>
 <div class=lbl>Lielie punkti galdā (pa vietām)</div><div class=bar>${[6,4,2,0].map((v,i)=>`<label style="flex:1;font-size:12px;color:var(--mu)">${i+1}. vieta<input id=lq${i} type=number step=any inputmode=decimal value=${v}></label>`).join('')}</div>
 <small class=mu>Ja rezultāts ir neizšķirts, attiecīgo vietu punkti tiek sadalīti vienādi. 3 spēlētāju galdā tiek izmantotas pirmās 3 vietas, 4 spēlētāju galdā visas 4.</small></div>
 ${rin(DEF)}
@@ -541,7 +544,7 @@ function soloV0(){const s=solo;
 if(!s.players.length)return hdr(solo.name||'Galds '+(sc+1))+`<div class=card><input id=sn placeholder="Galda nosaukums (nav obligāti)" style="margin-bottom:10px"><p>Spēlētāji (2–4)</p>${[0,1,2,3].map(i=>`<input id=n${i} placeholder="${i+1}. spēlētājs${i>1?' (nav obligāti)':''}">`).join('')}</div>${rin(DEF)}<button class=pri style="width:100%" onclick="soloStart()">Sākt</button>`;
 return hdr(solo.name||'Galds '+(sc+1))+ordBtn()+board(s.players,s.rounds,'ordS')+hand(s.players,'saveS',s.rounds)+hist(s.rounds,'undoS()')+`<button onclick="exportS()">⬇ Lejupielādēt Excel</button><button onclick="soloNew()">Dzēst galdiņu</button>`}
 function soloStart(){const p=[0,1,2,3].map(i=>$('#n'+i).value.trim()).filter(Boolean);if(p.length<2||new Set(p).size!==p.length)return alert('Ievadi 2–4 dažādus vārdus.');const rules=readRules();if(!rules)return;solo={players:p,rounds:[],rules,name:$('#sn').value.trim()};svSolo();render()}
-function saveS(rec){solo.rounds.push(rec);svSolo();H=null;render()}
+function saveS(rec){solo.rounds.push(rec);svSolo();H=null;if(document.activeElement&&document.activeElement.blur)document.activeElement.blur();render();jumpTop()}
 function undoS(){if(solo.rounds.length&&confirm('Dzēst pēdējo partiju?')){const r=solo.rounds.pop();svSolo();pendDl=r.dl?{p:r.dl,n:solo.rounds.length}:null;render()}}
 function soloNew(){if(confirm('Dzēst šī galda spēlētājus un rezultātus?')){if(sc>=2){solos.splice(sc,1);sc=sc-1;solo=solos[sc];ls.set('sc',sc);ls.set('solos',solos)}else{solo={players:[],rounds:[]};svSolo()}render()}}
 function board(pl,rs,fn){initH(pl,rs);const t=totals(rs);return `<div class=sb id=ol data-fn="${fn}">${pl.map((p,i)=>`<div data-i="${i}" class="${H.dealer===i?'dl':''}" onclick="setDl(${i})">${ordEd?'<span class=hd onclick="event.stopPropagation()" onpointerdown="dgS(event,this)" onpointermove="dgM(event)" onpointerup="dgE()" onpointercancel="dgE()">⠿</span>':''}<b>${esc(p)}</b><span class="${(t[p]||0)<0?'n':''}">${fmt(t[p]||0)}</span></div>`).join('')}</div><small class=mu>${ordEd?(dlPick?'Spied uz spēlētāja, kurš kļūs par dalītāju.':'Velc ⠿, lai mainītu vietas, vai spied „Izvēlēties dalītāju”. Kad gatavs, nospied „Gatavs”.'):''}</small>`}
